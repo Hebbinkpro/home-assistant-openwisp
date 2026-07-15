@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import ipaddress
 import socket
-from typing import Any
+from dataclasses import dataclass
+from datetime import datetime
+from ipaddress import IPv4Address, IPv6Address
+from typing import Any, Mapping
+from uuid import UUID
 
 import aiohttp
 import async_timeout
@@ -34,7 +39,74 @@ def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
         )
     response.raise_for_status()
 
+@dataclass(slots=True)
+class DeviceConfig:
+    """Configuration information of an OpenWISP device."""
 
+    status: str
+    error_reason: str
+    backend: str
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> DeviceConfig:
+        """Create DeviceConfig from a mapping."""
+        return cls(**data)
+
+
+@dataclass(slots=True)
+class DeviceMonitoring:
+    """Monitoring information of an OpenWISP device."""
+
+    status: str
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> DeviceMonitoring:
+        """Create DeviceMonitoring from a mapping."""
+        return cls(**data)
+
+
+@dataclass(slots=True)
+class Device:
+    """OpenWISP device."""
+
+    id: UUID
+    name: str
+    organization: UUID
+    group: UUID
+    mac_address: str
+    key: str
+    last_ip: IPv4Address | IPv6Address
+    management_ip: IPv4Address | IPv6Address
+    model: str
+    os: str
+    system: str
+    notes: str
+    config: DeviceConfig
+    monitoring: DeviceMonitoring
+    created: datetime
+    modified: datetime
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> Device:
+        """Create a Device from a mapping."""
+        return cls(
+            id=UUID(data["id"]),
+            name=data["name"],
+            organization=UUID(data["organization"]),
+            group=UUID(data["group"]),
+            mac_address=data["mac_address"].upper(),
+            key=data["key"],
+            last_ip=ipaddress.ip_address(data["last_ip"]),
+            management_ip=ipaddress.ip_address(data["management_ip"]),
+            model=data["model"],
+            os=data["os"],
+            system=data["system"],
+            notes=data["notes"],
+            config=DeviceConfig.from_dict(data["config"]),
+            monitoring=DeviceMonitoring.from_dict(data["monitoring"]),
+            created=datetime.fromisoformat(data["created"]),
+            modified=datetime.fromisoformat(data["modified"]),
+        )
 
 
 class OpenWispApiClient:
