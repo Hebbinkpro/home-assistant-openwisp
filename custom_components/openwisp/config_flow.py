@@ -1,10 +1,10 @@
-"""Adds config flow for Blueprint."""
+"""Adds config flow for OpenWisp."""
 
 from __future__ import annotations
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.const import CONF_PASSWORD, CONF_URL, CONF_USERNAME, CONF_VERIFY_SSL
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
 from homeassistant.loader import async_get_loaded_integration
@@ -25,16 +25,18 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(
-        self,
-        user_input: dict | None = None,
+            self,
+            user_input: dict | None = None,
     ) -> config_entries.ConfigFlowResult:
         """Handle a flow initialized by the user."""
         _errors = {}
         if user_input is not None:
             try:
                 await self._test_credentials(
+                    url=user_input[CONF_URL],
                     username=user_input[CONF_USERNAME],
                     password=user_input[CONF_PASSWORD],
+                    verify_ssl=user_input[CONF_VERIFY_SSL],
                 )
             except OpenWispApiClientAuthenticationError as exception:
                 LOGGER.warning(exception)
@@ -71,6 +73,14 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(
+                        CONF_URL,
+                        default=(user_input or {}).get(CONF_URL, vol.UNDEFINED),
+                    ): selector.TextSelector(
+                        selector.TextSelectorConfig(
+                            type=selector.TextSelectorType.URL,
+                        )
+                    ),
+                    vol.Required(
                         CONF_USERNAME,
                         default=(user_input or {}).get(CONF_USERNAME, vol.UNDEFINED),
                     ): selector.TextSelector(
@@ -83,16 +93,31 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                             type=selector.TextSelectorType.PASSWORD,
                         ),
                     ),
+                    vol.Optional(
+                        CONF_VERIFY_SSL,
+                        default=(user_input or {}).get(CONF_VERIFY_SSL, True),
+                    ): selector.BooleanSelector(
+                        selector.BooleanSelectorConfig(),
+                    ),
                 },
             ),
             errors=_errors,
         )
 
-    async def _test_credentials(self, username: str, password: str) -> None:
+    async def _test_credentials(
+            self,
+            url: str,
+            username: str,
+            password: str,
+            *,
+            verify_ssl: bool = True
+    ) -> None:
         """Validate credentials."""
-        client = IntegrationBlueprintApiClient(
+        client = OpenWispApiClient(
+            url=url,
             username=username,
             password=password,
             session=async_create_clientsession(self.hass),
+            verify_ssl=verify_ssl,
         )
-        await client.async_get_data()
+        await client.async_authenticate()
