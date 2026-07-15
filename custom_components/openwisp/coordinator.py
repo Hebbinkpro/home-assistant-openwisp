@@ -20,7 +20,11 @@ if TYPE_CHECKING:
 class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data from the API."""
 
-    config_entry: IntegrationBlueprintConfigEntry
+    config_entry: OpenWispConfigEntry
+
+    async def _async_setup(self) -> None:
+        """Set up the OpenWisp integration."""
+        await self.config_entry.runtime_data.client.async_authenticate()
 
     async def _async_update_data(self) -> Any:
         """Update data via library."""
