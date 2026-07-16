@@ -108,6 +108,32 @@ class Device:
             modified=datetime.fromisoformat(data["modified"]),
         )
 
+@dataclass(slots=True)
+class Organization:
+    """OpenWISP organization."""
+    id: UUID
+    name: str
+    is_active: bool
+    slug: str
+    description: str
+    url: str
+    created: datetime
+    modified: datetime
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> Organization:
+        """Create a Organization from a mapping."""
+        return cls(
+            id=UUID(data["id"]),
+            name=data["name"],
+            is_active=data["is_active"],
+            slug=data["slug"],
+            description=data["description"],
+            url=data["url"],
+            created=datetime.fromisoformat(data["created"]),
+            modified=datetime.fromisoformat(data["modified"]),
+        )
+
 
 class OpenWispApiClient:
     """Sample API Client."""
@@ -143,6 +169,14 @@ class OpenWispApiClient:
         if "token" not in res:
             raise OpenWispApiClientAuthenticationError
         self._token = res["token"]
+
+    async def get_organizations(self) -> list[Organization]:
+        """Get all organizations from the API."""
+        res = await self._api_wrapper(
+            method="get",
+            path="/api/v1/users/organization/",
+        )
+        return [Organization.from_dict(org) for org in res["results"]]
 
     async def async_get_data(self) -> Any:
         """Get data from the API."""
