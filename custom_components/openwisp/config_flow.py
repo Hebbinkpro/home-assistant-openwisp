@@ -25,8 +25,8 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(
-            self,
-            user_input: dict | None = None,
+        self,
+        user_input: dict | None = None,
     ) -> config_entries.ConfigFlowResult:
         """Handle a flow initialized by the user."""
         _errors = {}
@@ -105,12 +105,7 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _test_credentials(
-            self,
-            url: str,
-            username: str,
-            password: str,
-            *,
-            verify_ssl: bool = True
+        self, url: str, username: str, password: str, *, verify_ssl: bool = True
     ) -> None:
         """Validate credentials."""
         client = OpenWispApiClient(

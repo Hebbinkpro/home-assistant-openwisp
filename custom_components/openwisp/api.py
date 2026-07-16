@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping
+
 import ipaddress
 import socket
 from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import IPv4Address, IPv6Address
-from typing import Any, Mapping
 from uuid import UUID
 
 import aiohttp
@@ -38,6 +42,7 @@ def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
             msg,
         )
     response.raise_for_status()
+
 
 @dataclass(slots=True)
 class DeviceConfig:
@@ -108,9 +113,11 @@ class Device:
             modified=datetime.fromisoformat(data["modified"]),
         )
 
+
 @dataclass(slots=True)
 class Organization:
     """OpenWISP organization."""
+
     id: UUID
     name: str
     is_active: bool
@@ -122,7 +129,7 @@ class Organization:
 
     @classmethod
     def from_dict(cls, data: Mapping[str, Any]) -> Organization:
-        """Create a Organization from a mapping."""
+        """Create an Organization from a mapping."""
         return cls(
             id=UUID(data["id"]),
             name=data["name"],
@@ -153,7 +160,7 @@ class OpenWispApiClient:
         self._password = password
         self._verify_ssl = verify_ssl
         self._session = session
-        self._token: str|None = None
+        self._token: str | None = None
 
     async def async_authenticate(self) -> None:
         """Retrieve an access token from the API."""
@@ -195,10 +202,7 @@ class OpenWispApiClient:
 
     async def async_get_devices(self) -> list[Device]:
         """Get all device information from the API."""
-        res = await self._api_wrapper(
-            method="get",
-            path="/api/v1/monitoring/device/"
-        )
+        res = await self._api_wrapper(method="get", path="/api/v1/monitoring/device/")
 
         return [Device.from_dict(device) for device in res["results"]]
 
