@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-
 import ipaddress
 import socket
 from dataclasses import dataclass
 from datetime import datetime
 from ipaddress import IPv4Address, IPv6Address
+from typing import Any
+from urllib.parse import urlparse
 from uuid import UUID
 
 import aiohttp
@@ -144,20 +144,24 @@ class OpenWispApiClient:
 
     def __init__(
         self,
-        url: str,
+        host: str,
         username: str,
         password: str,
         session: aiohttp.ClientSession,
-        *,
-        verify_ssl: bool = True,
     ) -> None:
         """Sample API Client."""
-        self._url = url.strip(" \t/")
+        if not host.lower().startswith(("http://", "https://")):
+            host = "https://" + host
+        self._host = host
         self._username = username
         self._password = password
-        self._verify_ssl = verify_ssl
         self._session = session
         self._token: str | None = None
+
+    @property
+    def hostname(self) -> str:
+        """Return the hostname of the API."""
+        return urlparse(self._host).hostname or ""
 
     async def async_authenticate(self) -> None:
         """Retrieve an access token from the API."""
@@ -168,13 +172,14 @@ class OpenWispApiClient:
                 "username": self._username,
                 "password": self._password,
             },
+            auth=False,
         )
 
         if "token" not in res:
             raise OpenWispApiClientAuthenticationError
         self._token = res["token"]
 
-    async def get_organizations(self) -> list[OpenWispOrganization]:
+    async def async_get_organizations(self) -> list[OpenWispOrganization]:
         """Get all organizations from the API."""
         res = await self._api_wrapper(
             method="get",
@@ -194,22 +199,27 @@ class OpenWispApiClient:
         path: str,
         data: dict | None = None,
         headers: dict | None = None,
+        *,
+        auth: bool = True,
     ) -> Any:
         """Get information from the API."""
         headers = headers or {}
         if data is not None:
             headers["Content-type"] = "application/json; charset=UTF-8"
-        if self._token is not None:
-            headers["Authorization"] = f"Bearer {self._token}"
+
+        if auth:
+            if self._token is not None:
+                headers["Authorization"] = f"Bearer {self._token}"
+            else:
+                raise OpenWispApiClientAuthenticationError
 
         try:
             async with async_timeout.timeout(10):
                 response = await self._session.request(
                     method=method,
-                    url=f"{self._url}{path}",
+                    url=f"{self._host}{path}",
                     headers=headers,
                     json=data,
-                    ssl=self._verify_ssl,
                 )
                 _verify_response_or_raise(response)
                 return await response.json()
