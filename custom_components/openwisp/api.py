@@ -185,21 +185,6 @@ class OpenWispApiClient:
         )
         return [Organization.from_dict(org) for org in res["results"]]
 
-    async def async_get_data(self) -> Any:
-        """Get data from the API."""
-        return await self._api_wrapper(
-            method="get",
-            path="/posts/1",
-        )
-
-    async def async_set_title(self, value: str) -> Any:
-        """Get data from the API."""
-        return await self._api_wrapper(
-            method="patch",
-            path="/posts/1",
-            data={"title": value},
-        )
-
     async def async_get_devices(self) -> list[Device]:
         """Get all device information from the API."""
         res = await self._api_wrapper(method="get", path="/api/v1/monitoring/device/")
