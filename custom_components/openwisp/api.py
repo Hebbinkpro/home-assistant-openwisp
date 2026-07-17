@@ -4,9 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from collections.abc import Mapping
-
 import ipaddress
 import socket
 from dataclasses import dataclass
@@ -45,7 +42,7 @@ def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
 
 
 @dataclass(slots=True)
-class DeviceConfig:
+class DeviceConfigStatus:
     """Configuration information of an OpenWISP device."""
 
     status: str
@@ -53,25 +50,25 @@ class DeviceConfig:
     backend: str
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> DeviceConfig:
-        """Create DeviceConfig from a mapping."""
+    def from_dict(cls, data: dict[str, Any]) -> DeviceConfigStatus:
+        """Create DeviceConfig from a dict."""
         return cls(**data)
 
 
 @dataclass(slots=True)
-class DeviceMonitoring:
+class DeviceMonitoringStatus:
     """Monitoring information of an OpenWISP device."""
 
     status: str
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> DeviceMonitoring:
-        """Create DeviceMonitoring from a mapping."""
+    def from_dict(cls, data: dict[str, Any]) -> DeviceMonitoringStatus:
+        """Create DeviceMonitoring from a dict."""
         return cls(**data)
 
 
 @dataclass(slots=True)
-class Device:
+class OpenWispDevice:
     """OpenWISP device."""
 
     id: UUID
@@ -86,14 +83,14 @@ class Device:
     os: str
     system: str
     notes: str
-    config: DeviceConfig
-    monitoring: DeviceMonitoring
+    config: DeviceConfigStatus
+    monitoring: DeviceMonitoringStatus
     created: datetime
     modified: datetime
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> Device:
-        """Create a Device from a mapping."""
+    def from_dict(cls, data: dict[str, Any]) -> OpenWispDevice:
+        """Create a Device from a dict."""
         return cls(
             id=UUID(data["id"]),
             name=data["name"],
@@ -107,15 +104,15 @@ class Device:
             os=data["os"],
             system=data["system"],
             notes=data["notes"],
-            config=DeviceConfig.from_dict(data["config"]),
-            monitoring=DeviceMonitoring.from_dict(data["monitoring"]),
+            config=DeviceConfigStatus.from_dict(data["config"]),
+            monitoring=DeviceMonitoringStatus.from_dict(data["monitoring"]),
             created=datetime.fromisoformat(data["created"]),
             modified=datetime.fromisoformat(data["modified"]),
         )
 
 
 @dataclass(slots=True)
-class Organization:
+class OpenWispOrganization:
     """OpenWISP organization."""
 
     id: UUID
@@ -128,8 +125,8 @@ class Organization:
     modified: datetime
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> Organization:
-        """Create an Organization from a mapping."""
+    def from_dict(cls, data: dict[str, Any]) -> OpenWispOrganization:
+        """Create an Organization from a dict."""
         return cls(
             id=UUID(data["id"]),
             name=data["name"],
@@ -177,19 +174,19 @@ class OpenWispApiClient:
             raise OpenWispApiClientAuthenticationError
         self._token = res["token"]
 
-    async def get_organizations(self) -> list[Organization]:
+    async def get_organizations(self) -> list[OpenWispOrganization]:
         """Get all organizations from the API."""
         res = await self._api_wrapper(
             method="get",
             path="/api/v1/users/organization/",
         )
-        return [Organization.from_dict(org) for org in res["results"]]
+        return [OpenWispOrganization.from_dict(org) for org in res["results"]]
 
-    async def async_get_devices(self) -> list[Device]:
+    async def async_get_devices(self) -> list[OpenWispDevice]:
         """Get all device information from the API."""
         res = await self._api_wrapper(method="get", path="/api/v1/monitoring/device/")
 
-        return [Device.from_dict(device) for device in res["results"]]
+        return [OpenWispDevice.from_dict(device) for device in res["results"]]
 
     async def _api_wrapper(
         self,

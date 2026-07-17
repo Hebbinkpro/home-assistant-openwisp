@@ -9,7 +9,8 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .api import (
     OpenWispApiClientAuthenticationError,
-    OpenWispApiClientError, Device,
+    OpenWispApiClientError,
+    OpenWispDevice,
 )
 
 if TYPE_CHECKING:
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
 
 
 # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
-class OpenWispDataUpdateCoordinator(DataUpdateCoordinator[list[Device]]):
+class OpenWispDataUpdateCoordinator(DataUpdateCoordinator[list[OpenWispDevice]]):
     """Class to manage fetching data from the API."""
 
     config_entry: OpenWispConfigEntry
