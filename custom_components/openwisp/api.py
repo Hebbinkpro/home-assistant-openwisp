@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import socket
 from dataclasses import dataclass
@@ -29,16 +30,6 @@ class OpenWispApiClientAuthenticationError(
     OpenWispApiClientError,
 ):
     """Exception to indicate an authentication error."""
-
-
-def _verify_response_or_raise(response: aiohttp.ClientResponse) -> None:
-    """Verify that the response is valid."""
-    if response.status in (401, 403):
-        msg = "Invalid credentials"
-        raise OpenWispApiClientAuthenticationError(
-            msg,
-        )
-    response.raise_for_status()
 
 
 @dataclass(slots=True)
@@ -150,34 +141,23 @@ class OpenWispApiClient:
         session: aiohttp.ClientSession,
     ) -> None:
         """Sample API Client."""
-        if not host.lower().startswith(("http://", "https://")):
-            host = "https://" + host
         self._host = host
         self._username = username
         self._password = password
         self._session = session
+
         self._token: str | None = None
+        self._auth_lock = asyncio.Lock()
 
     @property
     def hostname(self) -> str:
         """Return the hostname of the API."""
         return urlparse(self._host).hostname or ""
 
-    async def async_authenticate(self) -> None:
-        """Retrieve an access token from the API."""
-        res = await self._api_wrapper(
-            method="post",
-            path="/api/v1/users/token/",
-            data={
-                "username": self._username,
-                "password": self._password,
-            },
-            auth=False,
-        )
-
-        if "token" not in res:
-            raise OpenWispApiClientAuthenticationError
-        self._token = res["token"]
+    @property
+    def is_authenticated(self) -> bool:
+        """Return True if the API is authenticated."""
+        return self._token is not None
 
     async def async_get_organizations(self) -> list[OpenWispOrganization]:
         """Get all organizations from the API."""
@@ -187,14 +167,79 @@ class OpenWispApiClient:
         )
         return [OpenWispOrganization.from_dict(org) for org in res["results"]]
 
-    async def async_get_devices(self, organization: UUID | None = None) -> list[OpenWispDevice]:
+    async def async_get_devices(
+        self, organization: UUID | None = None
+    ) -> dict[UUID, OpenWispDevice]:
         """Get all device information from the API."""
         if organization is None:
-            res = await self._api_wrapper(method="get", path="/api/v1/monitoring/device/")
+            res = await self._api_wrapper(
+                method="get", path="/api/v1/monitoring/device/"
+            )
         else:
-            res = await self._api_wrapper(method="get", path=f"/api/v1/monitoring/device/?organization={organization}")
+            res = await self._api_wrapper(
+                method="get",
+                path=f"/api/v1/monitoring/device/?organization={organization}",
+            )
 
-        return [OpenWispDevice.from_dict(device) for device in res["results"]]
+        return {
+            UUID(device["id"]): OpenWispDevice.from_dict(device)
+            for device in res["results"]
+        }
+
+    async def async_authenticate(self) -> None:
+        """Authenticate and store a new token."""
+        res = await self._request(
+            method="post",
+            path="/api/v1/users/token/",
+            data={
+                "username": self._username,
+                "password": self._password,
+            },
+            auth=False,
+        )
+
+        self._token = res["token"]
+
+    async def _ensure_authenticated(self) -> None:
+        """Ensure a valid token exists."""
+        if self._token is not None:
+            return
+
+        async with self._auth_lock:
+            if self._token is None:
+                await self.async_authenticate()
+
+    async def _request(
+        self,
+        method: str,
+        path: str,
+        data: dict | None = None,
+        headers: dict | None = None,
+        *,
+        auth: bool = True,
+    ) -> Any:
+        """Perform a single HTTP request."""
+        headers = dict(headers or {})
+
+        if data is not None:
+            headers["Content-Type"] = "application/json"
+
+        if auth and self._token is not None:
+            headers["Authorization"] = f"Bearer {self._token}"
+
+        async with async_timeout.timeout(10):
+            response = await self._session.request(
+                method=method,
+                url=f"{self._host}{path}",
+                json=data,
+                headers=headers,
+            )
+
+        if response.status in (401, 403):
+            raise OpenWispApiClientAuthenticationError
+
+        response.raise_for_status()
+        return await response.json()
 
     async def _api_wrapper(
         self,
@@ -205,40 +250,47 @@ class OpenWispApiClient:
         *,
         auth: bool = True,
     ) -> Any:
-        """Get information from the API."""
-        headers = headers or {}
-        if data is not None:
-            headers["Content-type"] = "application/json; charset=UTF-8"
-
-        if auth:
-            if self._token is not None:
-                headers["Authorization"] = f"Bearer {self._token}"
-            else:
-                raise OpenWispApiClientAuthenticationError
-
+        """Perform an authenticated API request with automatic reauthentication."""
         try:
-            async with async_timeout.timeout(10):
-                response = await self._session.request(
-                    method=method,
-                    url=f"{self._host}{path}",
-                    headers=headers,
-                    json=data,
-                )
-                _verify_response_or_raise(response)
-                return await response.json()
+            if auth:
+                await self._ensure_authenticated()
+
+            return await self._request(
+                method=method,
+                path=path,
+                data=data,
+                headers=headers,
+                auth=auth,
+            )
+
+        except OpenWispApiClientAuthenticationError:
+            if not auth:
+                raise
+
+            # Token expired -> clear and reauthenticate
+            self._token = None
+
+            async with self._auth_lock:
+                if self._token is None:
+                    await self.async_authenticate()
+
+            # Retry once
+            return await self._request(
+                method=method,
+                path=path,
+                data=data,
+                headers=headers,
+                auth=True,
+            )
 
         except TimeoutError as exception:
             msg = f"Timeout error fetching information - {exception}"
-            raise OpenWispApiClientCommunicationError(
-                msg,
-            ) from exception
+            raise OpenWispApiClientCommunicationError(msg) from exception
+
         except (aiohttp.ClientError, socket.gaierror) as exception:
             msg = f"Error fetching information - {exception}"
-            raise OpenWispApiClientCommunicationError(
-                msg,
-            ) from exception
-        except Exception as exception:  # pylint: disable=broad-except
-            msg = f"Something really wrong happened! - {exception}"
-            raise OpenWispApiClientError(
-                msg,
-            ) from exception
+            raise OpenWispApiClientCommunicationError(msg) from exception
+
+        except Exception as exception:
+            msg = f"Unknown error fetching information - {exception}"
+            raise OpenWispApiClientError(msg) from exception
