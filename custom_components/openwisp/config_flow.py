@@ -21,9 +21,8 @@ from .api import (
     OpenWispApiClientError,
     OpenWispOrganization,
 )
-from .const import DOMAIN, LOGGER
+from .const import DOMAIN, LOGGER, CONF_ORGANIZATION
 
-CONF_ORGANIZATION = "organization"
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
