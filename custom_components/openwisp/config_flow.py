@@ -138,7 +138,7 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
             )
 
         await self.async_set_unique_id(
-            f"{slugify(self._name)}_{user_input[CONF_ORGANIZATION]}"
+            user_input[CONF_ORGANIZATION]
         )
         self._abort_if_unique_id_configured()
 
