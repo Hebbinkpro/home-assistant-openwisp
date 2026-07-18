@@ -9,7 +9,6 @@ from homeassistant import config_entries
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, CONF_VERIFY_SSL
 from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_create_clientsession
-from slugify import slugify
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigFlowResult
@@ -21,8 +20,7 @@ from .api import (
     OpenWispApiClientError,
     OpenWispOrganization,
 )
-from .const import DOMAIN, LOGGER, CONF_ORGANIZATION
-
+from .const import CONF_ORGANIZATION, DOMAIN, LOGGER
 
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
@@ -136,9 +134,7 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="organization", data_schema=schema, errors=_errors
             )
 
-        await self.async_set_unique_id(
-            user_input[CONF_ORGANIZATION]
-        )
+        await self.async_set_unique_id(user_input[CONF_ORGANIZATION])
         self._abort_if_unique_id_configured()
 
         self._openwisp_opts.update(user_input)

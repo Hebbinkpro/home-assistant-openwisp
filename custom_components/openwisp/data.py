@@ -12,7 +12,6 @@ if TYPE_CHECKING:
     from .api import OpenWispApiClient
     from .coordinator import OpenWispDataUpdateCoordinator
 
-
 type OpenWispConfigEntry = ConfigEntry[OpenWispData]
 
 
