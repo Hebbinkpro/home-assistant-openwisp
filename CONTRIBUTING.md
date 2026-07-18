@@ -21,7 +21,9 @@ Pull requests are the best way to propose changes to the codebase.
 
 ## Any contributions you make will be under the MIT Software License
 
-In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to contact the maintainers if that's a concern.
+In short, when you submit code changes, your submissions are understood to be under the
+same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project. Feel free to
+contact the maintainers if that's a concern.
 
 ## Report bugs using Github's [issues](../../issues)
 
@@ -34,11 +36,12 @@ Report a bug by [opening a new issue](../../issues/new/choose); it's that easy!
 
 - A quick summary and/or background
 - Steps to reproduce
-  - Be specific!
-  - Give sample code if you can.
+    - Be specific!
+    - Give sample code if you can.
 - What you expected would happen
 - What actually happens
-- Notes (possibly including why you think this might be happening, or stuff you tried that didn't work)
+- Notes (possibly including why you think this might be happening, or stuff you tried that didn't
+  work)
 
 People *love* thorough bug reports. I'm not even kidding.
 
@@ -48,13 +51,19 @@ Use [black](https://github.com/ambv/black) to make sure the code follows the sty
 
 ## Test your code modification
 
-This custom component is based on [integration_blueprint template](https://github.com/ludeeus/integration_blueprint).
+This custom component is based on
+the [integration_blueprint template](https://github.com/ludeeus/integration_blueprint).
 
-It comes with development environment in a container, easy to launch
-if you use Visual Studio Code. With this container you will have a stand alone
-Home Assistant instance running and already configured with the included
-[`configuration.yaml`](./config/configuration.yaml)
-file.
+To launch the test environment, create and activate a Python 3.14 virtual environment (on Windows,
+use WSL 2) and install the required packages using: `pip install -r requirements.txt`
+
+With the virtual environment activated and all packages installed, you can launch the test
+environment using: `scripts/develop`
+This starts a Home Assistant instance that is already configured with the included [
+`configuration.yaml`](./config/configuration.yaml) file.
+
+Or, use the devcontainer available
+in [integration_blueprint template](https://github.com/ludeeus/integration_blueprint).
 
 ## License
 
