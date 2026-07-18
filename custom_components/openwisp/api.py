@@ -187,9 +187,12 @@ class OpenWispApiClient:
         )
         return [OpenWispOrganization.from_dict(org) for org in res["results"]]
 
-    async def async_get_devices(self) -> list[OpenWispDevice]:
+    async def async_get_devices(self, organization: UUID | None = None) -> list[OpenWispDevice]:
         """Get all device information from the API."""
-        res = await self._api_wrapper(method="get", path="/api/v1/monitoring/device/")
+        if organization is None:
+            res = await self._api_wrapper(method="get", path="/api/v1/monitoring/device/")
+        else:
+            res = await self._api_wrapper(method="get", path=f"/api/v1/monitoring/device/?organization={organization}")
 
         return [OpenWispDevice.from_dict(device) for device in res["results"]]
 
