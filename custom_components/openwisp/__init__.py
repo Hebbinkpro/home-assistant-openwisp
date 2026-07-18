@@ -7,7 +7,6 @@ https://github.com/hebbinkpro/home-assistant-openwisp
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.const import (
@@ -20,10 +19,12 @@ from homeassistant.const import (
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import OpenWispApiClient
-from .const import DOMAIN, LOGGER
+from .const import CONF_ORGANIZATION
 from .coordinator import OpenWispDataUpdateCoordinator
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     from homeassistant.core import HomeAssistant
 
     from .data import OpenWispConfigEntry
@@ -36,7 +37,7 @@ PLATFORMS: list[Platform] = [
 
 
 async def create_openwisp_client(
-    hass: HomeAssistant, data: dict[str, Any]
+    hass: HomeAssistant, data: Mapping[str, Any]
 ) -> OpenWispApiClient:
     """Create an OpenWISP API client for the given config entry."""
     host: str = data[CONF_HOST]
@@ -54,23 +55,27 @@ async def create_openwisp_client(
     )
 
 
-# https://developers.home-assistant.io/docs/config_entries_index/#setting-up-an-entry
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: OpenWispConfigEntry,
 ) -> bool:
     """Set up this integration using UI."""
+    client = await create_openwisp_client(hass, entry.data)
+
+    await client.async_authenticate()
+
     coordinator = OpenWispDataUpdateCoordinator(
         hass=hass,
-        logger=LOGGER,
-        name=DOMAIN,
-        update_interval=timedelta(hours=1),
+        client=client,
+        organization=entry.data[CONF_ORGANIZATION],
     )
 
-    # https://developers.home-assistant.io/docs/integration_fetching_data#coordinated-single-api-poll-for-data-for-all-entities
     await coordinator.async_config_entry_first_refresh()
 
+    entry.runtime_data = coordinator
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     return True
