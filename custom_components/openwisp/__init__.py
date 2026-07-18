@@ -17,10 +17,12 @@ from homeassistant.const import (
     Platform,
 )
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.loader import async_get_loaded_integration
 
 from .api import OpenWispApiClient
-from .const import CONF_ORGANIZATION
+from .const import CONF_ORGANIZATION, DOMAIN
 from .coordinator import OpenWispDataUpdateCoordinator
+from .data import OpenWispData
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -30,9 +32,7 @@ if TYPE_CHECKING:
     from .data import OpenWispConfigEntry
 
 PLATFORMS: list[Platform] = [
-    # Platform.SENSOR,
-    # Platform.BINARY_SENSOR,
-    # Platform.SWITCH,
+    Platform.SENSOR,
 ]
 
 
@@ -72,7 +72,14 @@ async def async_setup_entry(
 
     await coordinator.async_config_entry_first_refresh()
 
-    entry.runtime_data = coordinator
+    entry.runtime_data = OpenWispData(
+        client=client,
+        coordinator=coordinator,
+        integration=async_get_loaded_integration(
+            hass,
+            DOMAIN,
+        ),
+    )
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

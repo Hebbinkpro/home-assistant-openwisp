@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
-from homeassistant.helpers.device_registry import DeviceInfo
+from typing import TYPE_CHECKING
+
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import DOMAIN
 from .coordinator import OpenWispDataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from .api import OpenWispDevice
 
 
 class OpenWispEntity(CoordinatorEntity[OpenWispDataUpdateCoordinator]):
@@ -14,12 +20,39 @@ class OpenWispEntity(CoordinatorEntity[OpenWispDataUpdateCoordinator]):
     def __init__(self, coordinator: OpenWispDataUpdateCoordinator) -> None:
         """Initialize."""
         super().__init__(coordinator)
-        self._attr_unique_id = coordinator.config_entry.entry_id
+
+
+class OpenWispDeviceEntity(
+    OpenWispEntity,
+):
+    """Base OpenWISP device entity."""
+
+    def __init__(
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+    ) -> None:
+        """Initialize the device entity."""
+        super().__init__(coordinator)
+
+        self._device_id = device.id
+
         self._attr_device_info = DeviceInfo(
-            identifiers={
+            identifiers={(DOMAIN, str(device.id))},
+            connections={
                 (
-                    coordinator.config_entry.domain,
-                    coordinator.config_entry.entry_id,
-                ),
+                    CONNECTION_NETWORK_MAC,
+                    device.mac_address,
+                )
             },
+            name=device.name,
+            manufacturer="OpenWISP",
+            model=device.model,
+            sw_version=device.os,
+            hw_version=device.system,
         )
+
+    @property
+    def device(self) -> OpenWispDevice:
+        """Return the device."""
+        return self.coordinator.data[self._device_id]

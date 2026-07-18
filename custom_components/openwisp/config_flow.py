@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import voluptuous as vol
@@ -36,6 +37,10 @@ def create_openwisp_client(
     hass: config_entries.HomeAssistant, data: dict[str, Any]
 ) -> OpenWispApiClient:
     """Create an OpenWISP API client for the given config entry."""
+    host = data[CONF_HOST]
+    if not re.match(r"^https?://", host):
+        data[CONF_HOST] = f"https://{host}"
+
     return OpenWispApiClient(
         host=data[CONF_HOST],
         username=data[CONF_USERNAME],
@@ -134,7 +139,7 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
                 step_id="organization", data_schema=schema, errors=_errors
             )
 
-        await self.async_set_unique_id(user_input[CONF_ORGANIZATION])
+        await self.async_set_unique_id(str(user_input[CONF_ORGANIZATION]))
         self._abort_if_unique_id_configured()
 
         self._openwisp_opts.update(user_input)
