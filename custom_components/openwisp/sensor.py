@@ -6,13 +6,15 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorEntity
 
+from .const import DOMAIN
 from .entity import OpenWispDeviceEntity
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .data import OpenWispConfigEntry
+    from .api import OpenWispDevice
+    from .data import OpenWispConfigEntry, OpenWispDataUpdateCoordinator
 
 
 async def async_setup_entry(
@@ -45,7 +47,16 @@ async def async_setup_entry(
 class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
     """Configuration status."""
 
-    _attr_name = "Configuration status"
+    def __init__(
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+    ) -> None:
+        """Initialize the device entity."""
+        super().__init__(coordinator, device)
+
+        self._attr_unique_id = f"{DOMAIN}_{device.id}_configuration_status"
+        self._attr_name = "Configuration status"
 
     @property
     def native_value(self) -> str:
@@ -56,7 +67,16 @@ class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
 class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
     """Monitoring status."""
 
-    _attr_name = "Monitoring status"
+    def __init__(
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+    ) -> None:
+        """Initialize the device entity."""
+        super().__init__(coordinator, device)
+
+        self._attr_unique_id = f"{DOMAIN}_{device.id}_monitoring_status"
+        self._attr_name = "Monitoring status"
 
     @property
     def native_value(self) -> str:
