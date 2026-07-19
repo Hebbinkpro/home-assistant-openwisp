@@ -15,6 +15,8 @@ from uuid import UUID
 import aiohttp
 import async_timeout
 
+_SEMAPHORE = asyncio.Semaphore(10)
+
 
 class OpenWispApiClientError(Exception):
     """Exception to indicate a general API error."""
@@ -32,7 +34,7 @@ class OpenWispApiClientAuthenticationError(
     """Exception to indicate an authentication error."""
 
 
-@dataclass(slots=True)
+@dataclass
 class DeviceListConfig:
     """Configuration information of an OpenWISP device."""
 
@@ -46,7 +48,7 @@ class DeviceListConfig:
         return cls(**data)
 
 
-@dataclass(slots=True)
+@dataclass
 class BaseDeviceMonitoring:
     """Monitoring information of an OpenWISP device."""
 
@@ -57,8 +59,81 @@ class BaseDeviceMonitoring:
         """Create DeviceMonitoring from a dict."""
         return cls(**data)
 
+@dataclass
+class DeviceStatusMemoryResources:
+    """Device status memory resources of an OpenWISP device."""
 
-@dataclass(slots=True)
+    total: int
+    shared: int
+    free: int
+    cached: int
+    available: int
+    buffered: int
+
+@dataclass
+class DeviceStatusDiskResources:
+    """Device status disk resources of an OpenWISP device."""
+
+    filesystem: str
+    available_bytes: int
+    mount_point: str
+    used_percent: int
+    size_bytes: int
+    used_bytes: int
+
+@dataclass
+class DeviceStatusSwapResources:
+    """Device status swap resources of an OpenWISP device."""
+
+    free: int
+    total: int
+
+@dataclass
+class DeviceStatusResources:
+    """Device status resources of an OpenWISP device."""
+
+    memory: DeviceStatusMemoryResources
+    cpus: int
+    disk: list[DeviceStatusDiskResources]
+    load: tuple[float, float, float]
+    swap: DeviceStatusSwapResources
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DeviceStatusResources:
+        return cls(
+            memory=DeviceStatusMemoryResources(**data["memory"]),
+            cpus=data["cpus"],
+            disk=[DeviceStatusDiskResources(**disk) for disk in data["disk"]],
+            load=(data["load"][0], data["load"][1], data["load"][2]),
+            swap=DeviceStatusSwapResources(**data["swap"]),
+        )
+
+
+@dataclass
+class DeviceStatusInformation:
+    """Device status information of an OpenWISP device."""
+
+    type: str
+    local_time: datetime
+    uptime: datetime
+    hostname: str
+    resources: DeviceStatusResources
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DeviceStatusInformation:
+        if data["type"] is not "DeviceMonitoring":
+            raise ValueError(f"Invalid device status information type: {data['type']}")
+
+        return cls(
+            type=data["type"],
+            local_time=datetime.fromtimestamp(data["general"]["local_time"]),
+            uptime=datetime.fromtimestamp(data["general"]["uptime"]),
+            hostname=data["general"]["hostname"],
+            resources=DeviceStatusResources.from_dict(data["resources"]),
+        )
+
+
+@dataclass
 class OpenWispDevice:
     """OpenWISP device."""
 
@@ -78,6 +153,7 @@ class OpenWispDevice:
     monitoring: BaseDeviceMonitoring
     created: datetime
     modified: datetime
+    data: DeviceStatusInformation | None = None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> OpenWispDevice:
@@ -99,10 +175,11 @@ class OpenWispDevice:
             monitoring=BaseDeviceMonitoring.from_dict(data["monitoring"]),
             created=datetime.fromisoformat(data["created"]),
             modified=datetime.fromisoformat(data["modified"]),
+            data=None if not data["data"] else DeviceStatusInformation.from_dict(data["data"])
         )
 
 
-@dataclass(slots=True)
+@dataclass
 class OpenWispOrganization:
     """OpenWISP organization."""
 
@@ -178,13 +255,42 @@ class OpenWispApiClient:
         else:
             res = await self._api_wrapper(
                 method="get",
-                path=f"/api/v1/monitoring/device/?organization={organization}",
+                path=f"/api/v1/monitoring/device/",
+                query={"organization": str(organization)},
             )
 
-        return {
+        devices = {
             UUID(device["id"]): OpenWispDevice.from_dict(device)
             for device in res["results"]
         }
+
+        await asyncio.gather(
+            *(self._populate_device_data(device) for device in devices.values())
+        )
+
+        return devices
+
+    async def _populate_device_data(self, device: OpenWispDevice) -> OpenWispDevice:
+        """Populate the device data with status data."""
+        async with _SEMAPHORE:
+            detailed = await self.async_get_device(device.id, status=True)
+            device.data = detailed.data
+            return device
+
+    async def async_get_device(self, device_id: UUID, status: bool) -> OpenWispDevice:
+        """Get device information from the API."""
+
+        query = {}
+        if status:
+            # Note: no matter the value of status, the API provides the status data.
+            query["status"] = "true"
+
+        res = await self._api_wrapper(
+            method="get",
+            path=f"/api/v1/monitoring/device/{device_id}/",
+            query=query
+        )
+        return OpenWispDevice.from_dict(res)
 
     async def async_authenticate(self) -> None:
         """Authenticate and store a new token."""
@@ -200,6 +306,18 @@ class OpenWispApiClient:
 
         self._token = res["token"]
 
+    async def async_get_active_wifi_sessions(self, device: OpenWispDevice) -> int:
+        """Get the number of currently active Wi-Fi sessions of the given device."""
+        res = await self._api_wrapper(
+            method="get",
+            path="/api/v1/monitoring/wifi-session/",
+            query={
+                "device": str(device.id),
+                "stop_time__isnull": "true",
+            }
+        )
+        return res["count"]
+
     async def _ensure_authenticated(self) -> None:
         """Ensure a valid token exists."""
         if self._token is not None:
@@ -213,6 +331,7 @@ class OpenWispApiClient:
         self,
         method: str,
         path: str,
+        query: dict[str, str] | None = None,
         data: dict | None = None,
         headers: dict | None = None,
         *,
@@ -226,6 +345,10 @@ class OpenWispApiClient:
 
         if auth and self._token is not None:
             headers["Authorization"] = f"Bearer {self._token}"
+
+        url = f"{self._host}{path}"
+        if query:
+            url += "?" + "&".join(f"{k}={v}" for k, v in query.items())
 
         async with async_timeout.timeout(10):
             response = await self._session.request(
@@ -245,6 +368,7 @@ class OpenWispApiClient:
         self,
         method: str,
         path: str,
+        query: dict[str, str] | None = None,
         data: dict | None = None,
         headers: dict | None = None,
         *,
@@ -258,6 +382,7 @@ class OpenWispApiClient:
             return await self._request(
                 method=method,
                 path=path,
+                query=query,
                 data=data,
                 headers=headers,
                 auth=auth,
