@@ -62,6 +62,17 @@ class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
     def native_value(self) -> str:
         """Get the device configuration status."""
         return self.device.config.status
+    
+    @property
+    def options(self) -> list[str]:
+        """Get the config value options."""
+        return [
+            "modified",
+            "applied",
+            "error",
+            "deactivating",
+            "deactivated",
+        ]
 
 
 class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
@@ -82,3 +93,14 @@ class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
     def native_value(self) -> str:
         """Get the device monitoring status."""
         return self.device.monitoring.status
+
+    @property
+    def options(self) -> list[str]:
+        """Get the monitoring value options."""
+        return [
+            "unknown",
+            "ok",
+            "problem",
+            "critical",
+            "deactivated",
+        ]
