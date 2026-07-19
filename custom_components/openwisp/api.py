@@ -33,7 +33,7 @@ class OpenWispApiClientAuthenticationError(
 
 
 @dataclass(slots=True)
-class DeviceConfigStatus:
+class DeviceListConfig:
     """Configuration information of an OpenWISP device."""
 
     status: str
@@ -41,19 +41,19 @@ class DeviceConfigStatus:
     backend: str
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> DeviceConfigStatus:
+    def from_dict(cls, data: dict[str, Any]) -> DeviceListConfig:
         """Create DeviceConfig from a dict."""
         return cls(**data)
 
 
 @dataclass(slots=True)
-class DeviceMonitoringStatus:
+class BaseDeviceMonitoring:
     """Monitoring information of an OpenWISP device."""
 
     status: str
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> DeviceMonitoringStatus:
+    def from_dict(cls, data: dict[str, Any]) -> BaseDeviceMonitoring:
         """Create DeviceMonitoring from a dict."""
         return cls(**data)
 
@@ -74,8 +74,8 @@ class OpenWispDevice:
     os: str
     system: str
     notes: str
-    config: DeviceConfigStatus
-    monitoring: DeviceMonitoringStatus
+    config: DeviceListConfig
+    monitoring: BaseDeviceMonitoring
     created: datetime
     modified: datetime
 
@@ -95,8 +95,8 @@ class OpenWispDevice:
             os=data["os"],
             system=data["system"],
             notes=data["notes"],
-            config=DeviceConfigStatus.from_dict(data["config"]),
-            monitoring=DeviceMonitoringStatus.from_dict(data["monitoring"]),
+            config=DeviceListConfig.from_dict(data["config"]),
+            monitoring=BaseDeviceMonitoring.from_dict(data["monitoring"]),
             created=datetime.fromisoformat(data["created"]),
             modified=datetime.fromisoformat(data["modified"]),
         )
