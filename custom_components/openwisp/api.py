@@ -142,7 +142,6 @@ class OpenWispDevice:
     organization: UUID
     group: UUID
     mac_address: str
-    key: str
     last_ip: IPv4Address | IPv6Address
     management_ip: IPv4Address | IPv6Address
     model: str
@@ -164,7 +163,6 @@ class OpenWispDevice:
             organization=UUID(data["organization"]),
             group=UUID(data["group"]),
             mac_address=data["mac_address"].upper(),
-            key=data["key"],
             last_ip=ipaddress.ip_address(data["last_ip"]),
             management_ip=ipaddress.ip_address(data["management_ip"]),
             model=data["model"],
