@@ -35,6 +35,7 @@ async def async_setup_entry(
             [
                 OpenWispDeviceConfigStatusSensor(coordinator,device),
                 OpenWispDeviceMonitoringStatusSensor(coordinator,device),
+                OpenWispDeviceActiveWifiSessionsSensor(coordinator,device),
 
                 OpenWispDeviceStatusUptimeSensor(coordinator,device,True),
                 OpenWispDeviceStatusLocalTimeSensor(coordinator,device,True),
@@ -116,6 +117,30 @@ class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
             "critical",
             "deactivated",
         ]
+
+class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity):
+    """WiFi clients."""
+
+    def __init__(
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+    ) -> None:
+        """Initialize the device entity."""
+        super().__init__(coordinator, device)
+        self._attr_unique_id = f"{DOMAIN}_{device.id}_active_wifi_sessions"
+        self._attr_name = "Active WiFi sessions"
+
+
+    @property
+    def available(self) -> bool:
+        """Only available when Wi-Fi sessions have been fetched."""
+        return super().available and self.device.wifi_sessions is not None
+
+    @property
+    def native_value(self) -> int:
+        """Get the number of active Wi-Fi sessions."""
+        return self.device.wifi_sessions.active_sessions
 
 class OpenWispDeviceStatusInformationSensor(OpenWispDeviceEntity, SensorEntity):
     """Base class for device status information sensors."""
