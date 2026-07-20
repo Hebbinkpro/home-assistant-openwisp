@@ -4,7 +4,7 @@
       "user": {
         "description": "Login to your OpenWISP controller.",
         "data": {
-          "host": "Host",
+          "host": "API Domain",
           "username": "Username",
           "password": "Password",
           "verify_ssl": "Verify SSL"
