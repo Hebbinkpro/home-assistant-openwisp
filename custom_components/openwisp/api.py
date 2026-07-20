@@ -6,7 +6,7 @@ import asyncio
 import ipaddress
 import socket
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any
 from urllib.parse import urlparse
@@ -58,7 +58,10 @@ class BaseDeviceMonitoring:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> BaseDeviceMonitoring:
         """Create DeviceMonitoring from a dict."""
-        return cls(**data)
+        return cls(
+            status=data["status"],
+        )
+
 
 @dataclass
 class DeviceStatusMemoryResources:
@@ -71,6 +74,7 @@ class DeviceStatusMemoryResources:
     available: int
     buffered: int
 
+
 @dataclass
 class DeviceStatusDiskResources:
     """Device status disk resources of an OpenWISP device."""
@@ -82,12 +86,14 @@ class DeviceStatusDiskResources:
     size_bytes: int
     used_bytes: int
 
+
 @dataclass
 class DeviceStatusSwapResources:
     """Device status swap resources of an OpenWISP device."""
 
     free: int
     total: int
+
 
 @dataclass
 class DeviceStatusResources:
@@ -101,10 +107,14 @@ class DeviceStatusResources:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceStatusResources:
+        """Create DeviceStatusResources from a dict."""
         return cls(
             memory=DeviceStatusMemoryResources(**data["memory"]),
             cpus=data["cpus"],
-            disks={slugify(disk["filesystem"]): DeviceStatusDiskResources(**disk) for disk in data["disk"]},
+            disks={
+                slugify(disk["filesystem"]): DeviceStatusDiskResources(**disk)
+                for disk in data["disk"]
+            },
             load=(data["load"][0], data["load"][1], data["load"][2]),
             swap=DeviceStatusSwapResources(**data["swap"]),
         )
@@ -116,29 +126,37 @@ class DeviceStatusInformation:
 
     type: str
     local_time: datetime
-    uptime: datetime
+    uptime: timedelta
     hostname: str
     resources: DeviceStatusResources
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceStatusInformation:
-        if data["type"] is not "DeviceMonitoring":
-            raise ValueError(f"Invalid device status information type: {data['type']}")
+        """Create DeviceStatusInformation from a dict."""
+        if data["type"] != "DeviceMonitoring":
+            msg = f"Invalid device status information type: {data['type']}"
+            raise ValueError(msg)
 
         return cls(
             type=data["type"],
-            local_time=datetime.fromtimestamp(data["general"]["local_time"]),
-            uptime=datetime.fromtimestamp(data["general"]["uptime"]),
+            local_time=datetime.fromtimestamp(
+                data["general"]["local_time"],
+                tz=UTC,
+            ),
+            uptime=timedelta(seconds=data["general"]["uptime"]),
             hostname=data["general"]["hostname"],
             resources=DeviceStatusResources.from_dict(data["resources"]),
         )
 
+
 @dataclass
 class DeviceWifiSessions:
     """Device Wi-Fi session information of an OpenWISP device."""
+
     active_sessions: int
 
-@dataclass
+
+@dataclass(slots=True)
 class OpenWispDevice:
     """OpenWISP device."""
 
@@ -163,6 +181,10 @@ class OpenWispDevice:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> OpenWispDevice:
         """Create a Device from a dict."""
+        status_information = None
+        if "data" in data:
+            status_information = DeviceStatusInformation.from_dict(data["data"])
+
         return cls(
             id=UUID(data["id"]),
             name=data["name"],
@@ -179,7 +201,7 @@ class OpenWispDevice:
             monitoring=BaseDeviceMonitoring.from_dict(data["monitoring"]),
             created=datetime.fromisoformat(data["created"]),
             modified=datetime.fromisoformat(data["modified"]),
-            data=None if not data["data"] else DeviceStatusInformation.from_dict(data["data"]),
+            data=status_information,
             wifi_sessions=None,
         )
 
@@ -210,6 +232,18 @@ class OpenWispOrganization:
             created=datetime.fromisoformat(data["created"]),
             modified=datetime.fromisoformat(data["modified"]),
         )
+
+
+@dataclass(slots=True)
+class ApiRequest:
+    """API request parameters."""
+
+    method: str
+    path: str
+    query: dict[str, str] | None = None
+    data: dict[str, Any] | None = None
+    headers: dict[str, str] | None = None
+    auth: bool = True
 
 
 class OpenWispApiClient:
@@ -244,8 +278,10 @@ class OpenWispApiClient:
     async def async_get_organizations(self) -> list[OpenWispOrganization]:
         """Get all organizations from the API."""
         res = await self._api_wrapper(
-            method="get",
-            path="/api/v1/users/organization/",
+            ApiRequest(
+                method="get",
+                path="/api/v1/users/organization/",
+            )
         )
         return [OpenWispOrganization.from_dict(org) for org in res["results"]]
 
@@ -255,13 +291,18 @@ class OpenWispApiClient:
         """Get all device information from the API."""
         if organization is None:
             res = await self._api_wrapper(
-                method="get", path="/api/v1/monitoring/device/"
+                ApiRequest(
+                    method="get",
+                    path="/api/v1/monitoring/device/",
+                )
             )
         else:
             res = await self._api_wrapper(
-                method="get",
-                path=f"/api/v1/monitoring/device/",
-                query={"organization": str(organization)},
+                ApiRequest(
+                    method="get",
+                    path="/api/v1/monitoring/device/",
+                    query={"organization": str(organization)},
+                )
             )
 
         devices = {
@@ -284,36 +325,43 @@ class OpenWispApiClient:
             device.wifi_sessions = await self.async_get_wifi_sessions(device)
             return device
 
-    async def async_get_device(self, device_id: UUID, status: bool) -> OpenWispDevice:
+    async def async_get_device(
+        self, device_id: UUID, *, status: bool
+    ) -> OpenWispDevice:
         """Get device information from the API."""
-
         query = {}
         if status:
             # Note: no matter the value of status, the API provides the status data.
             query["status"] = "true"
 
         res = await self._api_wrapper(
-            method="get",
-            path=f"/api/v1/monitoring/device/{device_id}/",
-            query=query
+            ApiRequest(
+                method="get",
+                path=f"/api/v1/monitoring/device/{device_id}/",
+                query=query,
+            )
         )
         return OpenWispDevice.from_dict(res)
 
     async def async_authenticate(self) -> None:
         """Authenticate and store a new token."""
         res = await self._request(
-            method="post",
-            path="/api/v1/users/token/",
-            data={
-                "username": self._username,
-                "password": self._password,
-            },
-            auth=False,
+            ApiRequest(
+                method="post",
+                path="/api/v1/users/token/",
+                data={
+                    "username": self._username,
+                    "password": self._password,
+                },
+                auth=False,
+            )
         )
 
         self._token = res["token"]
 
-    async def async_get_wifi_sessions(self, device: OpenWispDevice) -> DeviceWifiSessions:
+    async def async_get_wifi_sessions(
+        self, device: OpenWispDevice
+    ) -> DeviceWifiSessions:
         """Get Wi-Fi session information of the given device."""
         active_sessions = await self.async_get_active_wifi_sessions(device)
         return DeviceWifiSessions(active_sessions)
@@ -321,12 +369,14 @@ class OpenWispApiClient:
     async def async_get_active_wifi_sessions(self, device: OpenWispDevice) -> int:
         """Get the number of currently active Wi-Fi sessions of the given device."""
         res = await self._api_wrapper(
-            method="get",
-            path="/api/v1/monitoring/wifi-session/",
-            query={
-                "device": str(device.id),
-                "stop_time__isnull": "true",
-            }
+            ApiRequest(
+                method="get",
+                path="/api/v1/monitoring/wifi-session/",
+                query={
+                    "device": str(device.id),
+                    "stop_time__isnull": "true",
+                },
+            )
         )
         return res["count"]
 
@@ -341,32 +391,26 @@ class OpenWispApiClient:
 
     async def _request(
         self,
-        method: str,
-        path: str,
-        query: dict[str, str] | None = None,
-        data: dict | None = None,
-        headers: dict | None = None,
-        *,
-        auth: bool = True,
+        request: ApiRequest,
     ) -> Any:
         """Perform a single HTTP request."""
-        headers = dict(headers or {})
+        headers = dict(request.headers or {})
 
-        if data is not None:
+        if request.data is not None:
             headers["Content-Type"] = "application/json"
 
-        if auth and self._token is not None:
+        if request.auth and self._token is not None:
             headers["Authorization"] = f"Bearer {self._token}"
 
-        url = f"{self._host}{path}"
-        if query:
-            url += "?" + "&".join(f"{k}={v}" for k, v in query.items())
+        url = f"{self._host}{request.path}"
+        if request.query:
+            url += "?" + "&".join(f"{k}={v}" for k, v in request.query.items())
 
         async with async_timeout.timeout(10):
             response = await self._session.request(
-                method=method,
-                url=f"{self._host}{path}",
-                json=data,
+                method=request.method,
+                url=url,
+                json=request.data,
                 headers=headers,
             )
 
@@ -378,30 +422,17 @@ class OpenWispApiClient:
 
     async def _api_wrapper(
         self,
-        method: str,
-        path: str,
-        query: dict[str, str] | None = None,
-        data: dict | None = None,
-        headers: dict | None = None,
-        *,
-        auth: bool = True,
+        request: ApiRequest,
     ) -> Any:
         """Perform an authenticated API request with automatic reauthentication."""
         try:
-            if auth:
+            if request.auth:
                 await self._ensure_authenticated()
 
-            return await self._request(
-                method=method,
-                path=path,
-                query=query,
-                data=data,
-                headers=headers,
-                auth=auth,
-            )
+            return await self._request(request)
 
         except OpenWispApiClientAuthenticationError:
-            if not auth:
+            if not request.auth:
                 raise
 
             # Token expired -> clear and reauthenticate
@@ -412,13 +443,7 @@ class OpenWispApiClient:
                     await self.async_authenticate()
 
             # Retry once
-            return await self._request(
-                method=method,
-                path=path,
-                data=data,
-                headers=headers,
-                auth=True,
-            )
+            return await self._request(request)
 
         except TimeoutError as exception:
             msg = f"Timeout error fetching information - {exception}"

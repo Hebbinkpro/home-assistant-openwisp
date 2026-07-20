@@ -2,21 +2,26 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
-from datetime import datetime
+from typing import TYPE_CHECKING
 
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import UnitOfInformation, EntityCategory, PERCENTAGE, UnitOfRatio
-from sensor import SensorDeviceClass
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.const import (
+    EntityCategory,
+    UnitOfInformation,
+    UnitOfRatio,
+    UnitOfTime,
+)
 from slugify import slugify
 
 from .entity import OpenWispDeviceEntity
 
 if TYPE_CHECKING:
+    from datetime import datetime
+
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .api import OpenWispDevice, DeviceStatusDiskResources
+    from .api import DeviceStatusDiskResources, OpenWispDevice
     from .data import OpenWispConfigEntry, OpenWispDataUpdateCoordinator
 
 
@@ -33,39 +38,63 @@ async def async_setup_entry(
     for device in coordinator.data.values():
         entities.extend(
             [
-                OpenWispDeviceConfigStatusSensor(coordinator,device),
-                OpenWispDeviceMonitoringStatusSensor(coordinator,device),
+                OpenWispDeviceConfigStatusSensor(coordinator, device),
+                OpenWispDeviceMonitoringStatusSensor(coordinator, device),
             ]
         )
 
         if device.data is not None:
             entities.extend(
                 [
-                    OpenWispDeviceStatusUptimeSensor(coordinator, device, True),
-                    OpenWispDeviceStatusLocalTimeSensor(coordinator, device, True),
-                    OpenWispDeviceStatusHostnameSensor(coordinator, device, True),
-                    OpenWispDeviceStatusCpuCountSensor(coordinator, device, True),
-                    OpenWispDeviceStatusLoad1Sensor(coordinator, device, True),
+                    OpenWispDeviceStatusUptimeSensor(coordinator, device, enabled=True),
+                    OpenWispDeviceStatusLocalTimeSensor(
+                        coordinator, device, enabled=True
+                    ),
+                    OpenWispDeviceStatusHostnameSensor(
+                        coordinator, device, enabled=True
+                    ),
+                    OpenWispDeviceStatusCpuCountSensor(
+                        coordinator, device, enabled=True
+                    ),
+                    OpenWispDeviceStatusLoad1Sensor(coordinator, device, enabled=True),
                     OpenWispDeviceStatusLoad5Sensor(coordinator, device),
                     OpenWispDeviceStatusLoad15Sensor(coordinator, device),
-                    OpenWispDeviceStatusMemoryAvailableSensor(coordinator, device, True),
-                    OpenWispDeviceStatusMemoryTotalSensor(coordinator, device, True),
+                    OpenWispDeviceStatusMemoryAvailableSensor(
+                        coordinator, device, enabled=True
+                    ),
+                    OpenWispDeviceStatusMemoryTotalSensor(
+                        coordinator, device, enabled=True
+                    ),
                     OpenWispDeviceStatusMemoryFreeSensor(coordinator, device),
                     OpenWispDeviceStatusMemoryBufferedSensor(coordinator, device),
                     OpenWispDeviceStatusMemorySharedSensor(coordinator, device),
-                    OpenWispDeviceStatusSwapFreeSensor(coordinator, device, True),
-                    OpenWispDeviceStatusSwapTotalSensor(coordinator, device, True),
+                    OpenWispDeviceStatusSwapFreeSensor(
+                        coordinator, device, enabled=True
+                    ),
+                    OpenWispDeviceStatusSwapTotalSensor(
+                        coordinator, device, enabled=True
+                    ),
                 ]
             )
 
-            for disk in device.disks.values():
+            for disk in device.data.resources.disks.values():
                 entities.extend(
                     [
-                        OpenWispDeviceStatusDiskAvailableBytesSensor(coordinator, device, disk, True),
-                        OpenWispDeviceStatusDiskMountPointSensor(coordinator, device, disk, True),
-                        OpenWispDeviceStatusDiskUsedPercentSensor(coordinator, device, disk, True),
-                        OpenWispDeviceStatusDiskSizeBytesSensor(coordinator, device, disk),
-                        OpenWispDeviceStatusDiskUsedBytesSensor(coordinator, device, disk),
+                        OpenWispDeviceStatusDiskAvailableBytesSensor(
+                            coordinator, device, disk
+                        ),
+                        OpenWispDeviceStatusDiskMountPointSensor(
+                            coordinator, device, disk
+                        ),
+                        OpenWispDeviceStatusDiskUsedPercentSensor(
+                            coordinator, device, disk, enabled=True
+                        ),
+                        OpenWispDeviceStatusDiskSizeBytesSensor(
+                            coordinator, device, disk
+                        ),
+                        OpenWispDeviceStatusDiskUsedBytesSensor(
+                            coordinator, device, disk
+                        ),
                     ]
                 )
 
@@ -76,12 +105,13 @@ async def async_setup_entry(
                 ]
             )
 
-
     async_add_entities(entities)
 
 
 class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
     """Configuration status."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
 
     def __init__(
         self,
@@ -98,7 +128,7 @@ class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
     def native_value(self) -> str:
         """Get the device configuration status."""
         return self.device.config.status
-    
+
     @property
     def options(self) -> list[str]:
         """Get the config value options."""
@@ -113,6 +143,8 @@ class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
 
 class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
     """Monitoring status."""
+
+    _attr_device_class = SensorDeviceClass.ENUM
 
     def __init__(
         self,
@@ -141,6 +173,7 @@ class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
             "deactivated",
         ]
 
+
 class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity):
     """WiFi clients."""
 
@@ -154,7 +187,6 @@ class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity)
         self._attr_unique_id = f"{self._base_unique_id}_active_wifi_sessions"
         self._attr_name = "Active WiFi sessions"
 
-
     @property
     def available(self) -> bool:
         """Only available when Wi-Fi sessions have been fetched."""
@@ -164,6 +196,7 @@ class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity)
     def native_value(self) -> int:
         """Get the number of active Wi-Fi sessions."""
         return self.device.wifi_sessions.active_sessions
+
 
 class OpenWispDeviceStatusInformationSensor(OpenWispDeviceEntity, SensorEntity):
     """Base class for device status information sensors."""
@@ -175,6 +208,7 @@ class OpenWispDeviceStatusInformationSensor(OpenWispDeviceEntity, SensorEntity):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
@@ -190,23 +224,25 @@ class OpenWispDeviceStatusInformationSensor(OpenWispDeviceEntity, SensorEntity):
 class OpenWispDeviceStatusUptimeSensor(OpenWispDeviceStatusInformationSensor):
     """Device uptime."""
 
-    _attr_device_class = SensorDeviceClass.TIMESTAMP
+    _attr_device_class = SensorDeviceClass.DURATION
+    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
 
     def __init__(
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_uptime"
         self._attr_name = "Uptime"
 
     @property
-    def native_value(self) -> datetime.datetime:
+    def native_value(self) -> int:
         """Return the device uptime."""
-        return self.device.data.uptime
+        return int(self.device.data.uptime.total_seconds())
 
 
 class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor):
@@ -218,15 +254,16 @@ class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor)
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_local_time"
         self._attr_name = "Local time"
 
     @property
-    def native_value(self):
+    def native_value(self) -> datetime:
         """Return the device local time."""
         return self.device.data.local_time
 
@@ -238,15 +275,16 @@ class OpenWispDeviceStatusHostnameSensor(OpenWispDeviceStatusInformationSensor):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_hostname"
         self._attr_name = "Hostname"
 
     @property
-    def native_value(self):
+    def native_value(self) -> str:
         """Return the device hostname."""
         return self.device.data.hostname
 
@@ -258,15 +296,16 @@ class OpenWispDeviceStatusCpuCountSensor(OpenWispDeviceStatusInformationSensor):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_cpus"
         self._attr_name = "CPU count"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return the number of CPUs."""
         return self.device.data.resources.cpus
 
@@ -280,15 +319,16 @@ class OpenWispDeviceStatusLoad1Sensor(OpenWispDeviceStatusInformationSensor):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_load_1"
         self._attr_name = "Load (1 min)"
 
     @property
-    def native_value(self):
+    def native_value(self) -> float:
         """Return the 1 minute load average."""
         return self.device.data.resources.load[0]
 
@@ -302,15 +342,16 @@ class OpenWispDeviceStatusLoad5Sensor(OpenWispDeviceStatusInformationSensor):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_load_5"
         self._attr_name = "Load (5 min)"
 
     @property
-    def native_value(self):
+    def native_value(self) -> float:
         """Return the 5 minute load average."""
         return self.device.data.resources.load[1]
 
@@ -324,15 +365,16 @@ class OpenWispDeviceStatusLoad15Sensor(OpenWispDeviceStatusInformationSensor):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_load_15"
         self._attr_name = "Load (15 min)"
 
     @property
-    def native_value(self):
+    def native_value(self) -> float:
         """Return the 15 minute load average."""
         return self.device.data.resources.load[2]
 
@@ -346,15 +388,16 @@ class OpenWispDeviceStatusMemoryAvailableSensor(OpenWispDeviceStatusInformationS
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_memory_available"
         self._attr_name = "Memory available"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return available memory."""
         return self.device.data.resources.memory.available
 
@@ -368,15 +411,16 @@ class OpenWispDeviceStatusMemoryTotalSensor(OpenWispDeviceStatusInformationSenso
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_memory_total"
         self._attr_name = "Memory total"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return total memory."""
         return self.device.data.resources.memory.total
 
@@ -390,15 +434,16 @@ class OpenWispDeviceStatusMemoryFreeSensor(OpenWispDeviceStatusInformationSensor
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_memory_free"
         self._attr_name = "Memory free"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return free memory."""
         return self.device.data.resources.memory.free
 
@@ -412,15 +457,16 @@ class OpenWispDeviceStatusMemoryBufferedSensor(OpenWispDeviceStatusInformationSe
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_memory_buffered"
         self._attr_name = "Memory buffered"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return buffered memory."""
         return self.device.data.resources.memory.buffered
 
@@ -434,15 +480,16 @@ class OpenWispDeviceStatusMemorySharedSensor(OpenWispDeviceStatusInformationSens
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_memory_shared"
         self._attr_name = "Memory shared"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return shared memory."""
         return self.device.data.resources.memory.shared
 
@@ -456,15 +503,16 @@ class OpenWispDeviceStatusSwapFreeSensor(OpenWispDeviceStatusInformationSensor):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_swap_free"
         self._attr_name = "Swap free"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return free swap."""
         return self.device.data.resources.swap.free
 
@@ -478,15 +526,16 @@ class OpenWispDeviceStatusSwapTotalSensor(OpenWispDeviceStatusInformationSensor)
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
+        *,
         enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_swap_total"
         self._attr_name = "Swap total"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return total swap."""
         return self.device.data.resources.swap.total
 
@@ -495,36 +544,39 @@ class OpenWispDeviceStatusDiskSensor(OpenWispDeviceStatusInformationSensor):
     """Base disk sensor."""
 
     def __init__(
-            self,
-            coordinator: OpenWispDataUpdateCoordinator,
-            device: OpenWispDevice,
-            disk: DeviceStatusDiskResources,
-            enabled: bool = False,
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+        disk: DeviceStatusDiskResources,
+        *,
+        enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, enabled)
+        super().__init__(coordinator, device, enabled=enabled)
         self._disk_id = slugify(disk.filesystem)
         self._base_unique_id = f"{self._base_unique_id}_{self._disk_id}"
 
 
 class OpenWispDeviceStatusDiskAvailableBytesSensor(OpenWispDeviceStatusDiskSensor):
     """Disk available bytes sensor."""
+
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
 
     def __init__(
-            self,
-            coordinator: OpenWispDataUpdateCoordinator,
-            device: OpenWispDevice,
-            disk: DeviceStatusDiskResources,
-            enabled: bool = False,
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+        disk: DeviceStatusDiskResources,
+        *,
+        enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, disk, enabled)
+        super().__init__(coordinator, device, disk, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_available_bytes"
         self._attr_name = f"{disk.filesystem}: Available bytes"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return available bytes."""
         return self.device.data.resources.disks[self._disk_id].available_bytes
 
@@ -533,81 +585,91 @@ class OpenWispDeviceStatusDiskMountPointSensor(OpenWispDeviceStatusDiskSensor):
     """Disk mount point sensor."""
 
     def __init__(
-            self,
-            coordinator: OpenWispDataUpdateCoordinator,
-            device: OpenWispDevice,
-            disk: DeviceStatusDiskResources,
-            enabled: bool = False,
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+        disk: DeviceStatusDiskResources,
+        *,
+        enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, disk, enabled)
+        super().__init__(coordinator, device, disk, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_mount_point"
         self._attr_name = f"{disk.filesystem}: Mount point"
 
     @property
-    def native_value(self):
+    def native_value(self) -> str:
         """Return mount point."""
         return self.device.data.resources.disks[self._disk_id].mount_point
 
+
 class OpenWispDeviceStatusDiskUsedPercentSensor(OpenWispDeviceStatusDiskSensor):
     """Disk used percent sensor."""
+
     _attr_native_unit_of_measurement = UnitOfRatio.PERCENTAGE
 
     def __init__(
-            self,
-            coordinator: OpenWispDataUpdateCoordinator,
-            device: OpenWispDevice,
-            disk: DeviceStatusDiskResources,
-            enabled: bool = False,
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+        disk: DeviceStatusDiskResources,
+        *,
+        enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, disk, enabled)
+        super().__init__(coordinator, device, disk, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_used_percent"
         self._attr_name = f"{disk.filesystem}: Used percent"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return used percent."""
         return self.device.data.resources.disks[self._disk_id].used_percent
 
+
 class OpenWispDeviceStatusDiskSizeBytesSensor(OpenWispDeviceStatusDiskSensor):
     """Disk size bytes sensor."""
+
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
 
     def __init__(
-            self,
-            coordinator: OpenWispDataUpdateCoordinator,
-            device: OpenWispDevice,
-            disk: DeviceStatusDiskResources,
-            enabled: bool = False,
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+        disk: DeviceStatusDiskResources,
+        *,
+        enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, disk, enabled)
+        super().__init__(coordinator, device, disk, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_size_bytes"
         self._attr_name = f"{disk.filesystem}: Size bytes"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return size bytes."""
         return self.device.data.resources.disks[self._disk_id].size_bytes
 
+
 class OpenWispDeviceStatusDiskUsedBytesSensor(OpenWispDeviceStatusDiskSensor):
     """Disk used bytes sensor."""
+
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
 
     def __init__(
-            self,
-            coordinator: OpenWispDataUpdateCoordinator,
-            device: OpenWispDevice,
-            disk: DeviceStatusDiskResources,
-            enabled: bool = False,
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+        disk: DeviceStatusDiskResources,
+        *,
+        enabled: bool = False,
     ) -> None:
         """Initialize the sensor."""
-        super().__init__(coordinator, device, disk, enabled)
+        super().__init__(coordinator, device, disk, enabled=enabled)
         self._attr_unique_id = f"{self._base_unique_id}_used_bytes"
         self._attr_name = f"{disk.filesystem}: Used bytes"
 
     @property
-    def native_value(self):
+    def native_value(self) -> int:
         """Return used bytes."""
         return self.device.data.resources.disks[self._disk_id].used_bytes
