@@ -1,9 +1,7 @@
 {
   "domain": "openwisp",
   "name": "OpenWISP",
-  "codeowners": [
-    "@hebbinkpro"
-  ],
+  "codeowners": ["@hebbinkpro"],
   "config_flow": true,
   "documentation": "https://github.com/hebbinkpro/home-assistant-openwisp",
   "iot_class": "local_polling",

@@ -17,7 +17,6 @@ import async_timeout
 from slugify import slugify
 
 from custom_components.openwisp.const import LOGGER
-from sqlalchemy import Uuid
 
 _SEMAPHORE = asyncio.Semaphore(10)
 
