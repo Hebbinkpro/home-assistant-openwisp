@@ -132,6 +132,10 @@ class DeviceStatusInformation:
             resources=DeviceStatusResources.from_dict(data["resources"]),
         )
 
+@dataclass
+class DeviceWifiSessions:
+    """Device Wi-Fi session information of an OpenWISP device."""
+    active_sessions: int
 
 @dataclass
 class OpenWispDevice:
@@ -152,7 +156,8 @@ class OpenWispDevice:
     monitoring: BaseDeviceMonitoring
     created: datetime
     modified: datetime
-    data: DeviceStatusInformation | None = None
+    data: DeviceStatusInformation | None
+    wifi_sessions: DeviceWifiSessions | None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> OpenWispDevice:
@@ -173,7 +178,8 @@ class OpenWispDevice:
             monitoring=BaseDeviceMonitoring.from_dict(data["monitoring"]),
             created=datetime.fromisoformat(data["created"]),
             modified=datetime.fromisoformat(data["modified"]),
-            data=None if not data["data"] else DeviceStatusInformation.from_dict(data["data"])
+            data=None if not data["data"] else DeviceStatusInformation.from_dict(data["data"]),
+            wifi_sessions=None,
         )
 
 
@@ -273,6 +279,8 @@ class OpenWispApiClient:
         async with _SEMAPHORE:
             detailed = await self.async_get_device(device.id, status=True)
             device.data = detailed.data
+
+            device.wifi_sessions = await self.async_get_wifi_sessions(device)
             return device
 
     async def async_get_device(self, device_id: UUID, status: bool) -> OpenWispDevice:
@@ -303,6 +311,11 @@ class OpenWispApiClient:
         )
 
         self._token = res["token"]
+
+    async def async_get_wifi_sessions(self, device: OpenWispDevice) -> DeviceWifiSessions:
+        """Get Wi-Fi session information of the given device."""
+        active_sessions = await self.async_get_active_wifi_sessions(device)
+        return DeviceWifiSessions(active_sessions)
 
     async def async_get_active_wifi_sessions(self, device: OpenWispDevice) -> int:
         """Get the number of currently active Wi-Fi sessions of the given device."""
