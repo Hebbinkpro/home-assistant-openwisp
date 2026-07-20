@@ -6,8 +6,9 @@ from typing import TYPE_CHECKING, Any
 from datetime import datetime
 
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import UnitOfInformation, EntityCategory
+from homeassistant.const import UnitOfInformation, EntityCategory, PERCENTAGE, UnitOfRatio
 from sensor import SensorDeviceClass
+from slugify import slugify
 
 from .entity import OpenWispDeviceEntity
 
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .api import OpenWispDevice
+    from .api import OpenWispDevice, DeviceStatusDiskResources
     from .data import OpenWispConfigEntry, OpenWispDataUpdateCoordinator
 
 
@@ -56,6 +57,17 @@ async def async_setup_entry(
                     OpenWispDeviceStatusSwapTotalSensor(coordinator, device, True),
                 ]
             )
+
+            for disk in device.disks.values():
+                entities.extend(
+                    [
+                        OpenWispDeviceStatusDiskAvailableBytesSensor(coordinator, device, disk, True),
+                        OpenWispDeviceStatusDiskMountPointSensor(coordinator, device, disk, True),
+                        OpenWispDeviceStatusDiskUsedPercentSensor(coordinator, device, disk, True),
+                        OpenWispDeviceStatusDiskSizeBytesSensor(coordinator, device, disk),
+                        OpenWispDeviceStatusDiskUsedBytesSensor(coordinator, device, disk),
+                    ]
+                )
 
         if device.wifi_sessions is not None:
             entities.extend(
@@ -477,3 +489,125 @@ class OpenWispDeviceStatusSwapTotalSensor(OpenWispDeviceStatusInformationSensor)
     def native_value(self):
         """Return total swap."""
         return self.device.data.resources.swap.total
+
+
+class OpenWispDeviceStatusDiskSensor(OpenWispDeviceStatusInformationSensor):
+    """Base disk sensor."""
+
+    def __init__(
+            self,
+            coordinator: OpenWispDataUpdateCoordinator,
+            device: OpenWispDevice,
+            disk: DeviceStatusDiskResources,
+            enabled: bool = False,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device, enabled)
+        self._disk_id = slugify(disk.filesystem)
+        self._base_unique_id = f"{self._base_unique_id}_{self._disk_id}"
+
+
+class OpenWispDeviceStatusDiskAvailableBytesSensor(OpenWispDeviceStatusDiskSensor):
+    """Disk available bytes sensor."""
+    _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+
+    def __init__(
+            self,
+            coordinator: OpenWispDataUpdateCoordinator,
+            device: OpenWispDevice,
+            disk: DeviceStatusDiskResources,
+            enabled: bool = False,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device, disk, enabled)
+        self._attr_unique_id = f"{self._base_unique_id}_available_bytes"
+        self._attr_name = f"{disk.filesystem}: Available bytes"
+
+    @property
+    def native_value(self):
+        """Return available bytes."""
+        return self.device.data.resources.disks[self._disk_id].available_bytes
+
+
+class OpenWispDeviceStatusDiskMountPointSensor(OpenWispDeviceStatusDiskSensor):
+    """Disk mount point sensor."""
+
+    def __init__(
+            self,
+            coordinator: OpenWispDataUpdateCoordinator,
+            device: OpenWispDevice,
+            disk: DeviceStatusDiskResources,
+            enabled: bool = False,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device, disk, enabled)
+        self._attr_unique_id = f"{self._base_unique_id}_mount_point"
+        self._attr_name = f"{disk.filesystem}: Mount point"
+
+    @property
+    def native_value(self):
+        """Return mount point."""
+        return self.device.data.resources.disks[self._disk_id].mount_point
+
+class OpenWispDeviceStatusDiskUsedPercentSensor(OpenWispDeviceStatusDiskSensor):
+    """Disk used percent sensor."""
+    _attr_native_unit_of_measurement = UnitOfRatio.PERCENTAGE
+
+    def __init__(
+            self,
+            coordinator: OpenWispDataUpdateCoordinator,
+            device: OpenWispDevice,
+            disk: DeviceStatusDiskResources,
+            enabled: bool = False,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device, disk, enabled)
+        self._attr_unique_id = f"{self._base_unique_id}_used_percent"
+        self._attr_name = f"{disk.filesystem}: Used percent"
+
+    @property
+    def native_value(self):
+        """Return used percent."""
+        return self.device.data.resources.disks[self._disk_id].used_percent
+
+class OpenWispDeviceStatusDiskSizeBytesSensor(OpenWispDeviceStatusDiskSensor):
+    """Disk size bytes sensor."""
+    _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+
+    def __init__(
+            self,
+            coordinator: OpenWispDataUpdateCoordinator,
+            device: OpenWispDevice,
+            disk: DeviceStatusDiskResources,
+            enabled: bool = False,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device, disk, enabled)
+        self._attr_unique_id = f"{self._base_unique_id}_size_bytes"
+        self._attr_name = f"{disk.filesystem}: Size bytes"
+
+    @property
+    def native_value(self):
+        """Return size bytes."""
+        return self.device.data.resources.disks[self._disk_id].size_bytes
+
+class OpenWispDeviceStatusDiskUsedBytesSensor(OpenWispDeviceStatusDiskSensor):
+    """Disk used bytes sensor."""
+    _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+
+    def __init__(
+            self,
+            coordinator: OpenWispDataUpdateCoordinator,
+            device: OpenWispDevice,
+            disk: DeviceStatusDiskResources,
+            enabled: bool = False,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device, disk, enabled)
+        self._attr_unique_id = f"{self._base_unique_id}_used_bytes"
+        self._attr_name = f"{disk.filesystem}: Used bytes"
+
+    @property
+    def native_value(self):
+        """Return used bytes."""
+        return self.device.data.resources.disks[self._disk_id].used_bytes

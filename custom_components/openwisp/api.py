@@ -14,6 +14,7 @@ from uuid import UUID
 
 import aiohttp
 import async_timeout
+from slugify import slugify
 
 _SEMAPHORE = asyncio.Semaphore(10)
 
@@ -94,7 +95,7 @@ class DeviceStatusResources:
 
     memory: DeviceStatusMemoryResources
     cpus: int
-    disk: list[DeviceStatusDiskResources]
+    disks: dict[str, DeviceStatusDiskResources]
     load: tuple[float, float, float]
     swap: DeviceStatusSwapResources
 
@@ -103,7 +104,7 @@ class DeviceStatusResources:
         return cls(
             memory=DeviceStatusMemoryResources(**data["memory"]),
             cpus=data["cpus"],
-            disk=[DeviceStatusDiskResources(**disk) for disk in data["disk"]],
+            disks={slugify(disk["filesystem"]): DeviceStatusDiskResources(**disk) for disk in data["disk"]},
             load=(data["load"][0], data["load"][1], data["load"][2]),
             swap=DeviceStatusSwapResources(**data["swap"]),
         )
