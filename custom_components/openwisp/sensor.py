@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -9,15 +10,12 @@ from homeassistant.const import (
     EntityCategory,
     UnitOfInformation,
     UnitOfRatio,
-    UnitOfTime,
 )
 from slugify import slugify
 
 from .entity import OpenWispDeviceEntity
 
 if TYPE_CHECKING:
-    from datetime import datetime
-
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
@@ -224,8 +222,7 @@ class OpenWispDeviceStatusInformationSensor(OpenWispDeviceEntity, SensorEntity):
 class OpenWispDeviceStatusUptimeSensor(OpenWispDeviceStatusInformationSensor):
     """Device uptime."""
 
-    _attr_device_class = SensorDeviceClass.DURATION
-    _attr_native_unit_of_measurement = UnitOfTime.SECONDS
+    _attr_device_class = SensorDeviceClass.UPTIME
 
     def __init__(
         self,
@@ -240,9 +237,9 @@ class OpenWispDeviceStatusUptimeSensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "Uptime"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> datetime:
         """Return the device uptime."""
-        return int(self.device.data.uptime.total_seconds())
+        return datetime.now(UTC) - self.device.data.uptime
 
 
 class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor):
