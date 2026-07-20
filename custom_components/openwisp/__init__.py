@@ -62,7 +62,7 @@ async def async_setup_entry(
     """Set up this integration using UI."""
     client = await create_openwisp_client(hass, entry.data)
 
-    await client.async_authenticate()
+    await client.ensure_authenticated()
 
     coordinator = OpenWispDataUpdateCoordinator(
         hass=hass,

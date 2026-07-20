@@ -10,11 +10,14 @@ from datetime import UTC, datetime, timedelta
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any
 from urllib.parse import urlparse
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import aiohttp
 import async_timeout
 from slugify import slugify
+
+from custom_components.openwisp.const import LOGGER
+from sqlalchemy import Uuid
 
 _SEMAPHORE = asyncio.Semaphore(10)
 
@@ -343,7 +346,7 @@ class OpenWispApiClient:
         )
         return OpenWispDevice.from_dict(res)
 
-    async def async_authenticate(self) -> None:
+    async def _async_authenticate(self) -> None:
         """Authenticate and store a new token."""
         res = await self._request(
             ApiRequest(
@@ -380,21 +383,23 @@ class OpenWispApiClient:
         )
         return res["count"]
 
-    async def _ensure_authenticated(self) -> None:
+    async def ensure_authenticated(self) -> None:
         """Ensure a valid token exists."""
         if self._token is not None:
             return
 
         async with self._auth_lock:
             if self._token is None:
-                await self.async_authenticate()
+                await self._async_authenticate()
 
     async def _request(
         self,
         request: ApiRequest,
     ) -> Any:
         """Perform a single HTTP request."""
-        headers = dict(request.headers or {})
+        headers = {}
+        if request.headers is not None:
+            headers.update(request.headers)
 
         if request.data is not None:
             headers["Content-Type"] = "application/json"
@@ -406,6 +411,9 @@ class OpenWispApiClient:
         if request.query:
             url += "?" + "&".join(f"{k}={v}" for k, v in request.query.items())
 
+        req_id = uuid4()
+        LOGGER.debug(f"[{req_id}] Requesting: {url}")
+
         async with async_timeout.timeout(10):
             response = await self._session.request(
                 method=request.method,
@@ -414,6 +422,7 @@ class OpenWispApiClient:
                 headers=headers,
             )
 
+        LOGGER.debug(f"[{req_id}] Response status: {response.status}")
         if response.status in (401, 403):
             raise OpenWispApiClientAuthenticationError
 
@@ -425,10 +434,11 @@ class OpenWispApiClient:
         request: ApiRequest,
     ) -> Any:
         """Perform an authenticated API request with automatic reauthentication."""
-        try:
-            if request.auth:
-                await self._ensure_authenticated()
+        if not request.auth:
+            return await self._request(request)
 
+        try:
+            await self.ensure_authenticated()
             return await self._request(request)
 
         except OpenWispApiClientAuthenticationError:
@@ -438,9 +448,7 @@ class OpenWispApiClient:
             # Token expired -> clear and reauthenticate
             self._token = None
 
-            async with self._auth_lock:
-                if self._token is None:
-                    await self.async_authenticate()
+            await self.ensure_authenticated()
 
             # Retry once
             return await self._request(request)

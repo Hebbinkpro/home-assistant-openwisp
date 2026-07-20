@@ -61,7 +61,7 @@ async def _validate_input(
 ) -> HubInfo:
     """Validate the user input allows us to connect."""
     client = create_openwisp_client(hass, data)
-    await client.async_authenticate()
+    await client.ensure_authenticated()
     name = client.hostname
     organizations = await client.async_get_organizations()
     return HubInfo(name, organizations)
@@ -80,8 +80,8 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(
         self,
-        user_input: dict | None = None,
-    ) -> config_entries.ConfigFlowResult:
+        user_input: dict[str, Any] | None = None,
+    ) -> ConfigFlowResult:
         """Handle a flow initialized by the user."""
         _errors = {}
         info: HubInfo | None = None
@@ -111,7 +111,7 @@ class OpenWispFlowHandler(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_organization(
-        self, user_input: dict | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
         """Handle step to select an organization to manage."""
         _errors = {}
