@@ -9,7 +9,6 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import UnitOfInformation, EntityCategory
 from sensor import SensorDeviceClass
 
-from .const import DOMAIN
 from .entity import OpenWispDeviceEntity
 
 if TYPE_CHECKING:
@@ -35,24 +34,36 @@ async def async_setup_entry(
             [
                 OpenWispDeviceConfigStatusSensor(coordinator,device),
                 OpenWispDeviceMonitoringStatusSensor(coordinator,device),
-                OpenWispDeviceActiveWifiSessionsSensor(coordinator,device),
-
-                OpenWispDeviceStatusUptimeSensor(coordinator,device,True),
-                OpenWispDeviceStatusLocalTimeSensor(coordinator,device,True),
-                OpenWispDeviceStatusHostnameSensor(coordinator,device,True),
-                OpenWispDeviceStatusCpuCountSensor(coordinator,device,True),
-                OpenWispDeviceStatusLoad1Sensor(coordinator,device,True),
-                OpenWispDeviceStatusLoad5Sensor(coordinator,device),
-                OpenWispDeviceStatusLoad15Sensor(coordinator,device),
-                OpenWispDeviceStatusMemoryAvailableSensor(coordinator,device,True),
-                OpenWispDeviceStatusMemoryTotalSensor(coordinator,device,True),
-                OpenWispDeviceStatusMemoryFreeSensor(coordinator,device),
-                OpenWispDeviceStatusMemoryBufferedSensor(coordinator,device),
-                OpenWispDeviceStatusMemorySharedSensor(coordinator,device),
-                OpenWispDeviceStatusSwapFreeSensor(coordinator,device,True),
-                OpenWispDeviceStatusSwapTotalSensor(coordinator,device,True),
             ]
         )
+
+        if device.data is not None:
+            entities.extend(
+                [
+                    OpenWispDeviceStatusUptimeSensor(coordinator, device, True),
+                    OpenWispDeviceStatusLocalTimeSensor(coordinator, device, True),
+                    OpenWispDeviceStatusHostnameSensor(coordinator, device, True),
+                    OpenWispDeviceStatusCpuCountSensor(coordinator, device, True),
+                    OpenWispDeviceStatusLoad1Sensor(coordinator, device, True),
+                    OpenWispDeviceStatusLoad5Sensor(coordinator, device),
+                    OpenWispDeviceStatusLoad15Sensor(coordinator, device),
+                    OpenWispDeviceStatusMemoryAvailableSensor(coordinator, device, True),
+                    OpenWispDeviceStatusMemoryTotalSensor(coordinator, device, True),
+                    OpenWispDeviceStatusMemoryFreeSensor(coordinator, device),
+                    OpenWispDeviceStatusMemoryBufferedSensor(coordinator, device),
+                    OpenWispDeviceStatusMemorySharedSensor(coordinator, device),
+                    OpenWispDeviceStatusSwapFreeSensor(coordinator, device, True),
+                    OpenWispDeviceStatusSwapTotalSensor(coordinator, device, True),
+                ]
+            )
+
+        if device.wifi_sessions is not None:
+            entities.extend(
+                [
+                    OpenWispDeviceActiveWifiSessionsSensor(coordinator, device),
+                ]
+            )
+
 
     async_add_entities(entities)
 
@@ -68,7 +79,7 @@ class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
         """Initialize the device entity."""
         super().__init__(coordinator, device)
 
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_configuration_status"
+        self._attr_unique_id = f"{self._base_unique_id}_configuration_status"
         self._attr_name = "Configuration status"
 
     @property
@@ -99,7 +110,7 @@ class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
         """Initialize the device entity."""
         super().__init__(coordinator, device)
 
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_monitoring_status"
+        self._attr_unique_id = f"{self._base_unique_id}_monitoring_status"
         self._attr_name = "Monitoring status"
 
     @property
@@ -128,7 +139,7 @@ class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity)
     ) -> None:
         """Initialize the device entity."""
         super().__init__(coordinator, device)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_active_wifi_sessions"
+        self._attr_unique_id = f"{self._base_unique_id}_active_wifi_sessions"
         self._attr_name = "Active WiFi sessions"
 
 
@@ -177,7 +188,7 @@ class OpenWispDeviceStatusUptimeSensor(OpenWispDeviceStatusInformationSensor):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_uptime"
+        self._attr_unique_id = f"{self._base_unique_id}_uptime"
         self._attr_name = "Uptime"
 
     @property
@@ -199,7 +210,7 @@ class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor)
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_local_time"
+        self._attr_unique_id = f"{self._base_unique_id}_local_time"
         self._attr_name = "Local time"
 
     @property
@@ -219,7 +230,7 @@ class OpenWispDeviceStatusHostnameSensor(OpenWispDeviceStatusInformationSensor):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_hostname"
+        self._attr_unique_id = f"{self._base_unique_id}_hostname"
         self._attr_name = "Hostname"
 
     @property
@@ -239,7 +250,7 @@ class OpenWispDeviceStatusCpuCountSensor(OpenWispDeviceStatusInformationSensor):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_cpus"
+        self._attr_unique_id = f"{self._base_unique_id}_cpus"
         self._attr_name = "CPU count"
 
     @property
@@ -261,7 +272,7 @@ class OpenWispDeviceStatusLoad1Sensor(OpenWispDeviceStatusInformationSensor):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_load_1"
+        self._attr_unique_id = f"{self._base_unique_id}_load_1"
         self._attr_name = "Load (1 min)"
 
     @property
@@ -283,7 +294,7 @@ class OpenWispDeviceStatusLoad5Sensor(OpenWispDeviceStatusInformationSensor):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_load_5"
+        self._attr_unique_id = f"{self._base_unique_id}_load_5"
         self._attr_name = "Load (5 min)"
 
     @property
@@ -305,7 +316,7 @@ class OpenWispDeviceStatusLoad15Sensor(OpenWispDeviceStatusInformationSensor):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_load_15"
+        self._attr_unique_id = f"{self._base_unique_id}_load_15"
         self._attr_name = "Load (15 min)"
 
     @property
@@ -327,7 +338,7 @@ class OpenWispDeviceStatusMemoryAvailableSensor(OpenWispDeviceStatusInformationS
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_memory_available"
+        self._attr_unique_id = f"{self._base_unique_id}_memory_available"
         self._attr_name = "Memory available"
 
     @property
@@ -349,7 +360,7 @@ class OpenWispDeviceStatusMemoryTotalSensor(OpenWispDeviceStatusInformationSenso
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_memory_total"
+        self._attr_unique_id = f"{self._base_unique_id}_memory_total"
         self._attr_name = "Memory total"
 
     @property
@@ -371,7 +382,7 @@ class OpenWispDeviceStatusMemoryFreeSensor(OpenWispDeviceStatusInformationSensor
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_memory_free"
+        self._attr_unique_id = f"{self._base_unique_id}_memory_free"
         self._attr_name = "Memory free"
 
     @property
@@ -393,7 +404,7 @@ class OpenWispDeviceStatusMemoryBufferedSensor(OpenWispDeviceStatusInformationSe
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_memory_buffered"
+        self._attr_unique_id = f"{self._base_unique_id}_memory_buffered"
         self._attr_name = "Memory buffered"
 
     @property
@@ -415,7 +426,7 @@ class OpenWispDeviceStatusMemorySharedSensor(OpenWispDeviceStatusInformationSens
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_memory_shared"
+        self._attr_unique_id = f"{self._base_unique_id}_memory_shared"
         self._attr_name = "Memory shared"
 
     @property
@@ -437,7 +448,7 @@ class OpenWispDeviceStatusSwapFreeSensor(OpenWispDeviceStatusInformationSensor):
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_swap_free"
+        self._attr_unique_id = f"{self._base_unique_id}_swap_free"
         self._attr_name = "Swap free"
 
     @property
@@ -459,7 +470,7 @@ class OpenWispDeviceStatusSwapTotalSensor(OpenWispDeviceStatusInformationSensor)
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device, enabled)
-        self._attr_unique_id = f"{DOMAIN}_{device.id}_swap_total"
+        self._attr_unique_id = f"{self._base_unique_id}_swap_total"
         self._attr_name = "Swap total"
 
     @property

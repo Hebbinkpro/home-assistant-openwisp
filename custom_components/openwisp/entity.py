@@ -36,6 +36,7 @@ class OpenWispDeviceEntity(
         super().__init__(coordinator)
 
         self._device_id = device.id
+        self._base_unique_id = f"{DOMAIN}_{device.id}"
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, str(device.id))},
