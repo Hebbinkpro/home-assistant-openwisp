@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.const import (
     EntityCategory,
     UnitOfInformation,
@@ -45,15 +49,11 @@ async def async_setup_entry(
             entities.extend(
                 [
                     OpenWispDeviceStatusUptimeSensor(coordinator, device, enabled=True),
-                    OpenWispDeviceStatusLocalTimeSensor(
-                        coordinator, device, enabled=True
-                    ),
+                    OpenWispDeviceStatusLocalTimeSensor(coordinator, device),
                     OpenWispDeviceStatusHostnameSensor(
                         coordinator, device, enabled=True
                     ),
-                    OpenWispDeviceStatusCpuCountSensor(
-                        coordinator, device, enabled=True
-                    ),
+                    OpenWispDeviceStatusCpuCountSensor(coordinator, device),
                     OpenWispDeviceStatusLoad1Sensor(coordinator, device, enabled=True),
                     OpenWispDeviceStatusLoad5Sensor(coordinator, device),
                     OpenWispDeviceStatusLoad15Sensor(coordinator, device),
@@ -174,6 +174,8 @@ class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
 
 class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity):
     """WiFi clients."""
+
+    _attr_state_class = SensorStateClass.TOTAL
 
     def __init__(
         self,
@@ -311,6 +313,7 @@ class OpenWispDeviceStatusLoad1Sensor(OpenWispDeviceStatusInformationSensor):
     """Device 1 minute load average."""
 
     _attr_suggested_display_precision = 2
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -333,6 +336,7 @@ class OpenWispDeviceStatusLoad1Sensor(OpenWispDeviceStatusInformationSensor):
 class OpenWispDeviceStatusLoad5Sensor(OpenWispDeviceStatusInformationSensor):
     """Device 5 minute load average."""
 
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 2
 
     def __init__(
@@ -356,6 +360,7 @@ class OpenWispDeviceStatusLoad5Sensor(OpenWispDeviceStatusInformationSensor):
 class OpenWispDeviceStatusLoad15Sensor(OpenWispDeviceStatusInformationSensor):
     """Device 15 minute load average."""
 
+    _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_suggested_display_precision = 2
 
     def __init__(
@@ -380,6 +385,10 @@ class OpenWispDeviceStatusMemoryAvailableSensor(OpenWispDeviceStatusInformationS
     """Available memory."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -403,6 +412,10 @@ class OpenWispDeviceStatusMemoryTotalSensor(OpenWispDeviceStatusInformationSenso
     """Total memory."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -426,6 +439,10 @@ class OpenWispDeviceStatusMemoryFreeSensor(OpenWispDeviceStatusInformationSensor
     """Free memory."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -449,6 +466,10 @@ class OpenWispDeviceStatusMemoryBufferedSensor(OpenWispDeviceStatusInformationSe
     """Buffered memory."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -472,6 +493,10 @@ class OpenWispDeviceStatusMemorySharedSensor(OpenWispDeviceStatusInformationSens
     """Shared memory."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -495,6 +520,10 @@ class OpenWispDeviceStatusSwapFreeSensor(OpenWispDeviceStatusInformationSensor):
     """Free swap."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -518,6 +547,10 @@ class OpenWispDeviceStatusSwapTotalSensor(OpenWispDeviceStatusInformationSensor)
     """Total swap."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -558,6 +591,10 @@ class OpenWispDeviceStatusDiskAvailableBytesSensor(OpenWispDeviceStatusDiskSenso
     """Disk available bytes sensor."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -604,6 +641,8 @@ class OpenWispDeviceStatusDiskUsedPercentSensor(OpenWispDeviceStatusDiskSensor):
     """Disk used percent sensor."""
 
     _attr_native_unit_of_measurement = UnitOfRatio.PERCENTAGE
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -628,6 +667,10 @@ class OpenWispDeviceStatusDiskSizeBytesSensor(OpenWispDeviceStatusDiskSensor):
     """Disk size bytes sensor."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
@@ -652,6 +695,10 @@ class OpenWispDeviceStatusDiskUsedBytesSensor(OpenWispDeviceStatusDiskSensor):
     """Disk used bytes sensor."""
 
     _attr_native_unit_of_measurement = UnitOfInformation.BYTES
+    _attr_suggested_unit_of_measurement = UnitOfInformation.MEBIBYTES
+    _attr_suggested_display_precision = 2
+    _attr_device_class = SensorDeviceClass.DATA_SIZE
+    _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
         self,
