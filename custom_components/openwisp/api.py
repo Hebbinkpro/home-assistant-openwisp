@@ -184,7 +184,7 @@ class OpenWispDevice:
     def from_dict(cls, data: dict[str, Any]) -> OpenWispDevice:
         """Create a Device from a dict."""
         status_information = None
-        if "data" in data:
+        if data.get("data") is not None:
             status_information = DeviceStatusInformation.from_dict(data["data"])
 
         # the management IP is apparently nullable
