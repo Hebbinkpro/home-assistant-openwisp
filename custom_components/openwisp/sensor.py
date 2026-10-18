@@ -641,7 +641,6 @@ class OpenWispDeviceStatusDiskUsedPercentSensor(OpenWispDeviceStatusDiskSensor):
     """Disk used percent sensor."""
 
     _attr_native_unit_of_measurement = UnitOfRatio.PERCENTAGE
-    _attr_device_class = SensorDeviceClass.DATA_SIZE
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(
