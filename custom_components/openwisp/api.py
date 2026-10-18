@@ -168,7 +168,7 @@ class OpenWispDevice:
     group: UUID
     mac_address: str
     last_ip: IPv4Address | IPv6Address
-    management_ip: IPv4Address | IPv6Address
+    management_ip: IPv4Address | IPv6Address | None
     model: str
     os: str
     system: str
@@ -187,14 +187,19 @@ class OpenWispDevice:
         if "data" in data:
             status_information = DeviceStatusInformation.from_dict(data["data"])
 
+        # the management IP is apparently nullable
+        management_ip = None
+        if data["management_ip"] is not None:
+            management_ip = ipaddress.ip_address(data["management_ip"])
+
         return cls(
             id=UUID(data["id"]),
             name=data["name"],
             organization=UUID(data["organization"]),
             group=UUID(data["group"]),
             mac_address=data["mac_address"].upper(),
-            last_ip=ipaddress.ip_address(data["last_ip"]),
-            management_ip=ipaddress.ip_address(data["management_ip"]),
+            last_ip= ipaddress.ip_address(data["last_ip"]),
+            management_ip=management_ip,
             model=data["model"],
             os=data["os"],
             system=data["system"],
