@@ -198,7 +198,7 @@ class OpenWispDevice:
             organization=UUID(data["organization"]),
             group=UUID(data["group"]),
             mac_address=data["mac_address"].upper(),
-            last_ip= ipaddress.ip_address(data["last_ip"]),
+            last_ip=ipaddress.ip_address(data["last_ip"]),
             management_ip=management_ip,
             model=data["model"],
             os=data["os"],
