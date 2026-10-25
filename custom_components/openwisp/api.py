@@ -165,7 +165,7 @@ class OpenWispDevice:
     id: UUID
     name: str
     organization: UUID
-    group: UUID
+    group: UUID | None
     mac_address: str
     last_ip: IPv4Address | IPv6Address
     management_ip: IPv4Address | IPv6Address | None
@@ -196,7 +196,7 @@ class OpenWispDevice:
             id=UUID(data["id"]),
             name=data["name"],
             organization=UUID(data["organization"]),
-            group=UUID(data["group"]),
+            group=UUID(data["group"]) if data.get("group") else None,
             mac_address=data["mac_address"].upper(),
             last_ip=ipaddress.ip_address(data["last_ip"]),
             management_ip=management_ip,
