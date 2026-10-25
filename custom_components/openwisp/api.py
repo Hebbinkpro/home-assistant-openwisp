@@ -123,6 +123,49 @@ class DeviceStatusResources:
 
 
 @dataclass
+class DeviceWirelessClient:
+    """Client associated with a wireless interface."""
+
+    mac_address: str
+    signal: int | None
+
+
+@dataclass
+class DeviceWirelessInterface:
+    """Wireless interface of an OpenWISP device."""
+
+    name: str
+    ssid: str | None
+    mode: str | None
+    channel: int | None
+    frequency: int | None
+    tx_power: int | None
+    noise: int | None
+    clients: list[DeviceWirelessClient]
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DeviceWirelessInterface:
+        """Create DeviceWirelessInterface from an interface dict."""
+        wireless = data["wireless"]
+        return cls(
+            name=data["name"],
+            ssid=wireless.get("ssid"),
+            mode=wireless.get("mode"),
+            channel=wireless.get("channel"),
+            frequency=wireless.get("frequency"),
+            tx_power=wireless.get("tx_power"),
+            noise=wireless.get("noise"),
+            clients=[
+                DeviceWirelessClient(
+                    mac_address=client["mac"].upper(),
+                    signal=client.get("signal"),
+                )
+                for client in wireless.get("clients") or []
+            ],
+        )
+
+
+@dataclass
 class DeviceStatusInformation:
     """Device status information of an OpenWISP device."""
 
@@ -131,6 +174,7 @@ class DeviceStatusInformation:
     uptime: timedelta
     hostname: str
     resources: DeviceStatusResources
+    wireless: dict[str, DeviceWirelessInterface]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceStatusInformation:
@@ -148,6 +192,11 @@ class DeviceStatusInformation:
             uptime=timedelta(seconds=data["general"]["uptime"]),
             hostname=data["general"]["hostname"],
             resources=DeviceStatusResources.from_dict(data["resources"]),
+            wireless={
+                interface["name"]: DeviceWirelessInterface.from_dict(interface)
+                for interface in data.get("interfaces") or []
+                if interface.get("wireless")
+            },
         )
 
 
@@ -156,6 +205,30 @@ class DeviceWifiSessions:
     """Device Wi-Fi session information of an OpenWISP device."""
 
     active_sessions: int
+
+
+@dataclass
+class WifiSession:
+    """Open Wi-Fi session of a client on an OpenWISP device."""
+
+    device: str
+    ssid: str
+    interface_name: str
+    mac_address: str
+    vendor: str | None
+    start_time: datetime
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WifiSession:
+        """Create a WifiSession from a dict."""
+        return cls(
+            device=data["device"],
+            ssid=data["ssid"],
+            interface_name=data["interface_name"],
+            mac_address=data["client"]["mac_address"].upper(),
+            vendor=data["client"].get("vendor") or None,
+            start_time=datetime.fromisoformat(data["start_time"]),
+        )
 
 
 @dataclass(slots=True)
@@ -323,13 +396,22 @@ class OpenWispApiClient:
 
         return devices
 
+    async def async_get_device_wifi_sessions(
+        self, devices: dict[UUID, OpenWispDevice], organization: UUID | None = None
+    ) -> list[WifiSession]:
+        """Get the open Wi-Fi sessions and count them per device."""
+        sessions = await self.async_get_open_wifi_sessions(organization)
+        for device in devices.values():
+            device.wifi_sessions = DeviceWifiSessions(
+                sum(1 for session in sessions if session.device == device.name)
+            )
+        return sessions
+
     async def _populate_device_data(self, device: OpenWispDevice) -> OpenWispDevice:
         """Populate the device data with status data."""
         async with _SEMAPHORE:
             detailed = await self.async_get_device(device.id, status=True)
             device.data = detailed.data
-
-            device.wifi_sessions = await self.async_get_wifi_sessions(device)
             return device
 
     async def async_get_device(
@@ -366,26 +448,28 @@ class OpenWispApiClient:
 
         self._token = res["token"]
 
-    async def async_get_wifi_sessions(
-        self, device: OpenWispDevice
-    ) -> DeviceWifiSessions:
-        """Get Wi-Fi session information of the given device."""
-        active_sessions = await self.async_get_active_wifi_sessions(device)
-        return DeviceWifiSessions(active_sessions)
+    async def async_get_open_wifi_sessions(
+        self, organization: UUID | None = None
+    ) -> list[WifiSession]:
+        """Get all open Wi-Fi sessions, following the pagination."""
+        query = {"stop_time__isnull": "true", "page_size": "100"}
+        if organization is not None:
+            query["device__organization"] = str(organization)
 
-    async def async_get_active_wifi_sessions(self, device: OpenWispDevice) -> int:
-        """Get the number of currently active Wi-Fi sessions of the given device."""
-        res = await self._api_wrapper(
-            ApiRequest(
-                method="get",
-                path="/api/v1/monitoring/wifi-session/",
-                query={
-                    "device": str(device.id),
-                    "stop_time__isnull": "true",
-                },
+        sessions: list[WifiSession] = []
+        page = 1
+        while True:
+            res = await self._api_wrapper(
+                ApiRequest(
+                    method="get",
+                    path="/api/v1/monitoring/wifi-session/",
+                    query={**query, "page": str(page)},
+                )
             )
-        )
-        return res["count"]
+            sessions.extend(WifiSession.from_dict(item) for item in res["results"])
+            if not res.get("next"):
+                return sessions
+            page += 1
 
     async def ensure_authenticated(self) -> None:
         """Ensure a valid token exists."""
