@@ -290,7 +290,16 @@ class OpenWispApiClient:
                 path="/api/v1/users/organization/",
             )
         )
-        return [OpenWispOrganization.from_dict(org) for org in res["results"]]
+
+        organizations: list[OpenWispOrganization] = []
+
+        for org in res.get("results", []):
+            try:
+                organizations.append(OpenWispOrganization.from_dict(org))
+            except Exception as e:
+                LOGGER.error(f"Error creating OpenWisp organization: {e}")
+
+        return organizations
 
     async def async_get_devices(
         self, organization: UUID | None = None
@@ -312,10 +321,16 @@ class OpenWispApiClient:
                 )
             )
 
-        devices = {
-            UUID(device["id"]): OpenWispDevice.from_dict(device)
-            for device in res["results"]
-        }
+        devices: dict[UUID, OpenWispDevice] = {}
+
+        for device_data in res.get("results", []):
+            # attempt to create OpenWispDevice from device data, but log any errors
+            try:
+                device = OpenWispDevice.from_dict(device_data)
+                devices[device.id] = device
+            except Exception as e:
+                LOGGER.error(f"Error creating OpenWispDevice from data: %s", e)
+                continue
 
         await asyncio.gather(
             *(self._populate_device_data(device) for device in devices.values())
@@ -326,15 +341,22 @@ class OpenWispApiClient:
     async def _populate_device_data(self, device: OpenWispDevice) -> OpenWispDevice:
         """Populate the device data with status data."""
         async with _SEMAPHORE:
-            detailed = await self.async_get_device(device.id, status=True)
-            device.data = detailed.data
+            # attempt to populate device data, but log any errors
+            try:
+                detailed = await self.async_get_device(device.id, status=True)
+                if detailed is None:
+                    return device
 
-            device.wifi_sessions = await self.async_get_wifi_sessions(device)
+                device.data = detailed.data
+                device.wifi_sessions = await self.async_get_wifi_sessions(device)
+            except Exception as e:
+                LOGGER.error(f"Error populating data of device with UUID {device.id}: %s", e)
+
             return device
 
     async def async_get_device(
         self, device_id: UUID, *, status: bool
-    ) -> OpenWispDevice:
+    ) -> OpenWispDevice|None:
         """Get device information from the API."""
         query = {}
         if status:
@@ -348,7 +370,12 @@ class OpenWispApiClient:
                 query=query,
             )
         )
-        return OpenWispDevice.from_dict(res)
+
+        try:
+            return OpenWispDevice.from_dict(res)
+        except Exception as e:
+            LOGGER.error(f"Error creating OpenWisp device: {e}")
+            return None
 
     async def _async_authenticate(self) -> None:
         """Authenticate and store a new token."""
@@ -385,7 +412,7 @@ class OpenWispApiClient:
                 },
             )
         )
-        return res["count"]
+        return res.get("count", 0)
 
     async def ensure_authenticated(self) -> None:
         """Ensure a valid token exists."""
