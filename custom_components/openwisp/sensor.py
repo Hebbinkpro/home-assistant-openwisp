@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from zoneinfo import ZoneInfo
-
-from datetime import datetime, UTC
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -288,9 +287,8 @@ class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor)
         # ensure that the timezone is set
         tz = self.coordinator.hass.config.time_zone
         local_time = self.device.data.general.local_time
-        local_time = local_time.astimezone(ZoneInfo(tz))
 
-        return local_time
+        return local_time.astimezone(ZoneInfo(tz))
 
 
 class OpenWispDeviceStatusHostnameSensor(OpenWispDeviceStatusInformationSensor):
