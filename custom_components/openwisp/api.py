@@ -6,9 +6,11 @@ import asyncio
 import ipaddress
 import socket
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
+
 import aiohttp
 import async_timeout
 from slugify import slugify
@@ -16,16 +18,19 @@ from slugify import slugify
 from .const import LOGGER
 from .utils import get_and_apply
 
-from typing import TYPE_CHECKING
 if TYPE_CHECKING:
-    from typing import Any
     from ipaddress import IPv4Address, IPv6Address
+    from typing import Any
 
 _SEMAPHORE = asyncio.Semaphore(10)
 
 
-class OpenWispApiClientError(Exception):
+class OpenWispApiError(Exception):
     """Exception to indicate a general API error."""
+
+
+class OpenWispApiClientError(OpenWispApiError):
+    """Exception to indicate a general API error caused by the API client."""
 
 
 class OpenWispApiClientCommunicationError(
@@ -140,23 +145,22 @@ class DeviceStatusSwapResources:
 class DeviceStatusResources:
     """Device status resources of an OpenWISP device."""
 
-    memory: DeviceStatusMemoryResources|None
+    memory: DeviceStatusMemoryResources | None
     cpus: int
     disks: dict[str, DeviceStatusDiskResources]
     load: tuple[float, float, float]
-    swap: DeviceStatusSwapResources|None
+    swap: DeviceStatusSwapResources | None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceStatusResources:
         """Create DeviceStatusResources from a dict."""
-
         disks: dict[str, DeviceStatusDiskResources] = {}
 
         for disk_data in data.get("disk", []):
             disk_resources = DeviceStatusDiskResources.from_dict(disk_data)
             disks[slugify(disk_resources.filesystem)] = disk_resources
 
-        load = data.get("load", (0,0,0))
+        load = data.get("load", (0, 0, 0))
 
         return cls(
             memory=get_and_apply(data, "memory", DeviceStatusMemoryResources.from_dict),
@@ -166,9 +170,11 @@ class DeviceStatusResources:
             swap=get_and_apply(data, "swap", DeviceStatusSwapResources.from_dict),
         )
 
+
 @dataclass
 class GeneralDeviceStatusInformation:
     """General device status information of an OpenWISP device."""
+
     local_time: datetime | None
     uptime: timedelta | None
     hostname: str
@@ -181,6 +187,7 @@ class GeneralDeviceStatusInformation:
             uptime=get_and_apply(data, "uptime", lambda x: timedelta(seconds=x)),
             hostname=data.get("hostname", ""),
         )
+
 
 @dataclass
 class DeviceStatusInformation:
@@ -196,11 +203,13 @@ class DeviceStatusInformation:
         information_type = data.get("type", "")
         if information_type != "DeviceMonitoring":
             msg = f"Invalid device status information type: {data['type']}"
-            raise ValueError(msg)
+            raise OpenWispApiError(msg)
 
         return cls(
             type=information_type,
-            general=get_and_apply(data, "general", GeneralDeviceStatusInformation.from_dict),
+            general=get_and_apply(
+                data, "general", GeneralDeviceStatusInformation.from_dict
+            ),
             resources=get_and_apply(data, "resources", DeviceStatusResources.from_dict),
         )
 
@@ -244,6 +253,9 @@ class OpenWispDevice:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> OpenWispDevice:
         """Create a Device from a dict."""
+        if data.get("id") is None:
+            msg = "Missing device ID while parsing OpenWispDevice"
+            raise OpenWispApiError(msg)
 
         return cls(
             id=UUID(data["id"]),
@@ -258,12 +270,15 @@ class OpenWispDevice:
             system=data.get("system", ""),
             notes=data.get("notes", ""),
             config=get_and_apply(data, "config", DeviceListConfig.from_dict),
-            monitoring=get_and_apply(data, "monitoring", BaseDeviceMonitoring.from_dict),
+            monitoring=get_and_apply(
+                data, "monitoring", BaseDeviceMonitoring.from_dict
+            ),
             created=get_and_apply(data, "created", datetime.fromisoformat),
             modified=get_and_apply(data, "modified", datetime.fromisoformat),
             data=get_and_apply(data, "data", DeviceStatusInformation.from_dict),
             wifi_sessions=None,
         )
+
 
 @dataclass
 class OpenWispOrganization:
@@ -281,6 +296,10 @@ class OpenWispOrganization:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> OpenWispOrganization:
         """Create an Organization from a dict."""
+        if data.get("id") is None:
+            msg = "Missing organization ID while parsing OpenWispOrganization"
+            raise OpenWispApiError(msg)
+
         return cls(
             id=UUID(data["id"]),
             name=data.get("name", ""),
@@ -348,7 +367,7 @@ class OpenWispApiClient:
         for org in res.get("results", []):
             try:
                 organizations.append(OpenWispOrganization.from_dict(org))
-            except Exception as e:
+            except OpenWispApiError as e:
                 LOGGER.error(f"Error creating OpenWisp organization: {e}")
 
         return organizations
@@ -380,8 +399,8 @@ class OpenWispApiClient:
             try:
                 device = OpenWispDevice.from_dict(device_data)
                 devices[device.id] = device
-            except Exception as e:
-                LOGGER.error(f"Error creating OpenWispDevice from data: %s", e)
+            except OpenWispApiError as e:
+                LOGGER.error("Error creating OpenWispDevice from data: %s", e)
                 continue
 
         await asyncio.gather(
@@ -401,14 +420,16 @@ class OpenWispApiClient:
 
                 device.data = detailed.data
                 device.wifi_sessions = await self.async_get_wifi_sessions(device)
-            except Exception as e:
-                LOGGER.error(f"Error populating data of device with UUID {device.id}: %s", e)
+            except OpenWispApiError as e:
+                LOGGER.error(
+                    f"Error populating data of device with UUID {device.id}: %s", e
+                )
 
             return device
 
     async def async_get_device(
         self, device_id: UUID, *, status: bool
-    ) -> OpenWispDevice|None:
+    ) -> OpenWispDevice | None:
         """Get device information from the API."""
         query = {}
         if status:
@@ -425,7 +446,7 @@ class OpenWispApiClient:
 
         try:
             return OpenWispDevice.from_dict(res)
-        except Exception as e:
+        except OpenWispApiError as e:
             LOGGER.error(f"Error creating OpenWisp device: {e}")
             return None
 

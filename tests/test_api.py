@@ -1,9 +1,8 @@
-import pytest
+"""Test API classes"""
 
-from datetime import datetime
-from custom_components.openwisp.api import OpenWispOrganization,OpenWispDevice
 from uuid import UUID
 
+from custom_components.openwisp.api import OpenWispDevice, OpenWispOrganization
 
 DEFAULT_ID = "12345678-1234-1234-1234-123456789abc"
 DATE_CREATED = "2026-02-15T00:00:00+01:00"
@@ -36,6 +35,7 @@ def test_organization_from_minimal_dict():
     assert org.id == UUID(DEFAULT_ID)
     assert org.name == ""
 
+
 def test_organization_from_empty_dict():
     # this should fail
     try:
@@ -43,6 +43,7 @@ def test_organization_from_empty_dict():
         assert False
     except:
         assert True
+
 
 def test_device_from_filled_dict():
 
@@ -83,6 +84,7 @@ def test_device_from_minimal_dict():
     assert isinstance(device, OpenWispDevice)
     assert device.id == UUID(DEFAULT_ID)
     assert device.name == ""
+
 
 def test_device_from_empty_dict():
     # this should fail
