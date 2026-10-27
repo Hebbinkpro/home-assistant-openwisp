@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -123,8 +124,11 @@ class OpenWispDeviceConfigStatusSensor(OpenWispDeviceEntity, SensorEntity):
         self._attr_name = "Configuration status"
 
     @property
-    def native_value(self) -> str:
+    def native_value(self) -> str | None:
         """Get the device configuration status."""
+        if self.device.config is None:
+            return None
+
         return self.device.config.status
 
     @property
@@ -156,8 +160,11 @@ class OpenWispDeviceMonitoringStatusSensor(OpenWispDeviceEntity, SensorEntity):
         self._attr_name = "Monitoring status"
 
     @property
-    def native_value(self) -> str:
+    def native_value(self) -> str | None:
         """Get the device monitoring status."""
+        if self.device.monitoring is None:
+            return None
+
         return self.device.monitoring.status
 
     @property
@@ -193,8 +200,11 @@ class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity)
         return super().available and self.device.wifi_sessions is not None
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Get the number of active Wi-Fi sessions."""
+        if self.device.wifi_sessions is None:
+            return None
+
         return self.device.wifi_sessions.active_sessions
 
 
@@ -239,9 +249,14 @@ class OpenWispDeviceStatusUptimeSensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "Uptime"
 
     @property
-    def native_value(self) -> datetime:
+    def native_value(self) -> datetime | None:
         """Return the device uptime."""
-        return datetime.now(UTC) - self.device.data.uptime
+        if self.device.data is None:
+            return None
+        if self.device.data.general is None:
+            return None
+
+        return datetime.now(UTC) - self.device.data.general.uptime
 
 
 class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor):
@@ -262,9 +277,18 @@ class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor)
         self._attr_name = "Local time"
 
     @property
-    def native_value(self) -> datetime:
+    def native_value(self) -> datetime | None:
         """Return the device local time."""
-        return self.device.data.local_time
+        if self.device.data is None:
+            return None
+        if self.device.data.general is None:
+            return None
+
+        # ensure that the timezone is set
+        tz = self.coordinator.hass.config.time_zone
+        local_time = self.device.data.general.local_time
+
+        return local_time.astimezone(ZoneInfo(tz))
 
 
 class OpenWispDeviceStatusHostnameSensor(OpenWispDeviceStatusInformationSensor):
@@ -283,9 +307,14 @@ class OpenWispDeviceStatusHostnameSensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "Hostname"
 
     @property
-    def native_value(self) -> str:
+    def native_value(self) -> str | None:
         """Return the device hostname."""
-        return self.device.data.hostname
+        if self.device.data is None:
+            return None
+        if self.device.data.general is None:
+            return None
+
+        return self.device.data.general.hostname
 
 
 class OpenWispDeviceStatusCpuCountSensor(OpenWispDeviceStatusInformationSensor):
@@ -304,8 +333,13 @@ class OpenWispDeviceStatusCpuCountSensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "CPU count"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return the number of CPUs."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.cpus
 
 
@@ -328,8 +362,13 @@ class OpenWispDeviceStatusLoad1Sensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "Load (1 min)"
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> float | None:
         """Return the 1 minute load average."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.load[0]
 
 
@@ -352,8 +391,13 @@ class OpenWispDeviceStatusLoad5Sensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "Load (5 min)"
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> float | None:
         """Return the 5 minute load average."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.load[1]
 
 
@@ -376,8 +420,13 @@ class OpenWispDeviceStatusLoad15Sensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "Load (15 min)"
 
     @property
-    def native_value(self) -> float:
+    def native_value(self) -> float | None:
         """Return the 15 minute load average."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.load[2]
 
 
@@ -403,8 +452,15 @@ class OpenWispDeviceStatusMemoryAvailableSensor(OpenWispDeviceStatusInformationS
         self._attr_name = "Memory available"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return available memory."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+        if self.device.data.resources.memory is None:
+            return None
+
         return self.device.data.resources.memory.available
 
 
@@ -430,8 +486,15 @@ class OpenWispDeviceStatusMemoryTotalSensor(OpenWispDeviceStatusInformationSenso
         self._attr_name = "Memory total"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return total memory."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+        if self.device.data.resources.memory is None:
+            return None
+
         return self.device.data.resources.memory.total
 
 
@@ -457,8 +520,15 @@ class OpenWispDeviceStatusMemoryFreeSensor(OpenWispDeviceStatusInformationSensor
         self._attr_name = "Memory free"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return free memory."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+        if self.device.data.resources.memory is None:
+            return None
+
         return self.device.data.resources.memory.free
 
 
@@ -484,8 +554,15 @@ class OpenWispDeviceStatusMemoryBufferedSensor(OpenWispDeviceStatusInformationSe
         self._attr_name = "Memory buffered"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return buffered memory."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+        if self.device.data.resources.memory is None:
+            return None
+
         return self.device.data.resources.memory.buffered
 
 
@@ -511,8 +588,15 @@ class OpenWispDeviceStatusMemorySharedSensor(OpenWispDeviceStatusInformationSens
         self._attr_name = "Memory shared"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return shared memory."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+        if self.device.data.resources.memory is None:
+            return None
+
         return self.device.data.resources.memory.shared
 
 
@@ -538,8 +622,15 @@ class OpenWispDeviceStatusSwapFreeSensor(OpenWispDeviceStatusInformationSensor):
         self._attr_name = "Swap free"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return free swap."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+        if self.device.data.resources.swap is None:
+            return None
+
         return self.device.data.resources.swap.free
 
 
@@ -565,8 +656,15 @@ class OpenWispDeviceStatusSwapTotalSensor(OpenWispDeviceStatusInformationSensor)
         self._attr_name = "Swap total"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return total swap."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+        if self.device.data.resources.swap is None:
+            return None
+
         return self.device.data.resources.swap.total
 
 
@@ -610,8 +708,13 @@ class OpenWispDeviceStatusDiskAvailableBytesSensor(OpenWispDeviceStatusDiskSenso
         self._attr_name = f"{disk.filesystem}: Available bytes"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return available bytes."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.disks[self._disk_id].available_bytes
 
 
@@ -632,8 +735,13 @@ class OpenWispDeviceStatusDiskMountPointSensor(OpenWispDeviceStatusDiskSensor):
         self._attr_name = f"{disk.filesystem}: Mount point"
 
     @property
-    def native_value(self) -> str:
+    def native_value(self) -> str | None:
         """Return mount point."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.disks[self._disk_id].mount_point
 
 
@@ -657,8 +765,13 @@ class OpenWispDeviceStatusDiskUsedPercentSensor(OpenWispDeviceStatusDiskSensor):
         self._attr_name = f"{disk.filesystem}: Used percent"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return used percent."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.disks[self._disk_id].used_percent
 
 
@@ -685,8 +798,13 @@ class OpenWispDeviceStatusDiskSizeBytesSensor(OpenWispDeviceStatusDiskSensor):
         self._attr_name = f"{disk.filesystem}: Size bytes"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return size bytes."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.disks[self._disk_id].size_bytes
 
 
@@ -713,6 +831,11 @@ class OpenWispDeviceStatusDiskUsedBytesSensor(OpenWispDeviceStatusDiskSensor):
         self._attr_name = f"{disk.filesystem}: Used bytes"
 
     @property
-    def native_value(self) -> int:
+    def native_value(self) -> int | None:
         """Return used bytes."""
+        if self.device.data is None:
+            return None
+        if self.device.data.resources is None:
+            return None
+
         return self.device.data.resources.disks[self._disk_id].used_bytes
