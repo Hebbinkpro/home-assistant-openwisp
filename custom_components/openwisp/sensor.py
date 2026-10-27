@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
+
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import (
@@ -283,7 +285,12 @@ class OpenWispDeviceStatusLocalTimeSensor(OpenWispDeviceStatusInformationSensor)
         if self.device.data.general is None:
             return None
 
-        return self.device.data.general.local_time
+        # ensure that the timezone is set
+        tz = self.coordinator.hass.config.time_zone
+        local_time = self.device.data.general.local_time
+        local_time = local_time.astimezone(ZoneInfo(tz))
+
+        return local_time
 
 
 class OpenWispDeviceStatusHostnameSensor(OpenWispDeviceStatusInformationSensor):
