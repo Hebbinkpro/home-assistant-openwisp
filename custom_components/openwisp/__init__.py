@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from .data import OpenWispConfigEntry
 
 PLATFORMS: list[Platform] = [
+    Platform.DEVICE_TRACKER,
     Platform.SENSOR,
 ]
 
