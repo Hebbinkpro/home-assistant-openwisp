@@ -73,9 +73,7 @@ class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
             self._update_wifi_clients(devices)
             return devices
 
-    def _update_wifi_clients(
-        self, devices: dict[UUID, OpenWispDevice]
-    ) -> None:
+    def _update_wifi_clients(self, devices: dict[UUID, OpenWispDevice]) -> None:
         """
         Track the Wi-Fi clients of the open sessions.
 
@@ -94,12 +92,12 @@ class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
                 if interface.wireless is None:
                     continue
 
-                for mac,client in interface.wireless.clients.items():
+                for mac, client in interface.wireless.clients.items():
                     self.wifi_clients[mac] = WifiClient(
                         mac_address=mac,
                         last_seen=now,
                         session=client.session,
-                        signal=client.signal
+                        signal=client.signal,
                     )
                     currently_connected.add(mac)
 
@@ -107,4 +105,3 @@ class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
         for mac in not_connected:
             client = self.wifi_clients[mac]
             client.connected = now - client.last_seen < CONSIDER_HOME
-

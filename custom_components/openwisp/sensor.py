@@ -25,8 +25,8 @@ if TYPE_CHECKING:
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from .api import (
-        DeviceStatusDiskResources,
         DeviceInterface,
+        DeviceStatusDiskResources,
         DeviceWirelessInterface,
         OpenWispDevice,
     )
@@ -102,9 +102,15 @@ async def async_setup_entry(
                     ]
                 )
 
-            for interface in device.data.interfaces.values():
-                if interface.wireless is not None:
-                    entities.append(OpenWispDeviceWirelessClientsSensor(coordinator, device, interface, interface.wirless))
+            entities.extend(
+                [
+                    OpenWispDeviceWirelessClientsSensor(
+                        coordinator, device, interface, interface.wirless
+                    )
+                    for interface in device.data.interfaces.values()
+                    if interface.wireless is not None
+                ]
+            )
 
         if device.wifi_sessions is not None:
             entities.extend(
@@ -244,7 +250,7 @@ class OpenWispDeviceWirelessClientsSensor(OpenWispDeviceEntity, SensorEntity):
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
         interface: DeviceInterface,
-        wireless: DeviceWirelessInterface
+        wireless: DeviceWirelessInterface,
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device)

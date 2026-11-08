@@ -15,7 +15,7 @@ import aiohttp
 import async_timeout
 from slugify import slugify
 
-from .const import LOGGER, API_RESULTS_PAGE_SIZE
+from .const import API_RESULTS_PAGE_SIZE, LOGGER
 from .utils import get_and_apply, parse_bool
 
 if TYPE_CHECKING:
@@ -202,6 +202,7 @@ class DeviceWirelessClient:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceWirelessClient:
+        """Create a DeviceWirelessClient from a dict."""
         if data.get("mac") is None:
             msg = "Wireless client does not have a MAC-address"
             raise OpenWispApiError(msg)
@@ -212,17 +213,20 @@ class DeviceWirelessClient:
             noise=data.get("noise"),
             throughput=data.get("throughput"),
             vendor=data.get("vendor"),
-            session=None
+            session=None,
         )
+
 
 @dataclass
 class DeviceWirelessInterface:
+    """A wireless interface for a device."""
+
     ssid: str
     noise: int | None
-    country: str  | None
+    country: str | None
     clients: dict[str, DeviceWirelessClient]
     signal: int | None
-    bitrate: float| None
+    bitrate: float | None
     quality_max: int | None
     quality: int | None
     channel: int | None
@@ -233,7 +237,7 @@ class DeviceWirelessInterface:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceWirelessInterface:
-
+        """Create a DeviceWirelessInterface from a dict."""
         if data.get("ssid") is None:
             msg = "Wireless interface does not have a SSID"
             raise OpenWispApiError(msg)
@@ -259,6 +263,7 @@ class DeviceWirelessInterface:
             frequency=data.get("frequency"),
         )
 
+
 @dataclass
 class DeviceInterface:
     """Wireless interface of an OpenWISP device."""
@@ -272,13 +277,11 @@ class DeviceInterface:
     multicast: bool
     up: bool
 
-
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceInterface:
         """Create DeviceWirelessInterface from an interface dict."""
-
         if data.get("name") is None:
-            msg = f"Device interface does not have a name."
+            msg = "Device interface does not have a name."
             raise OpenWispApiError(msg)
 
         return cls(
@@ -324,9 +327,11 @@ class DeviceStatusInformation:
             interfaces=interfaces,
         )
 
+
 @dataclass
 class WifiSessionClient:
     """Client associated with a wifi session."""
+
     mac_address: str
     vendor: str
     wifi6: bool | None
@@ -338,6 +343,7 @@ class WifiSessionClient:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WifiSessionClient:
+        """Create a WifiSessionClient from a dict."""
         if data.get("mac") is None:
             msg = "Wi-Fi session client does not have a mac."
             raise OpenWispApiError(msg)
@@ -345,7 +351,7 @@ class WifiSessionClient:
         return cls(
             mac_address=data["mac_address"].upper(),
             vendor=data.get("vendor", ""),
-            # Note: The API is capable of returning null, "True", "False", true, and false...
+            # Note: The API returns nice values
             wifi6=parse_bool(data.get("wifi6")),
             wifi5=parse_bool(data.get("wifi5")),
             wifi4=parse_bool(data.get("wifi4")),
@@ -387,6 +393,7 @@ class WifiSession:
             stop_time=get_and_apply(data, "stop_time", datetime.fromisoformat),
             modified=get_and_apply(data, "modified", datetime.fromisoformat),
         )
+
 
 @dataclass
 class DeviceWifiSessions:
@@ -588,7 +595,6 @@ class OpenWispApiClient:
 
         return sessions
 
-
     async def _populate_device_data(self, device: OpenWispDevice) -> OpenWispDevice:
         """Populate the device data with status data."""
         async with _SEMAPHORE:
@@ -652,7 +658,7 @@ class OpenWispApiClient:
         query = {
             "device": str(device.id),
             "stop_time__isnull": "true",
-            "page_size": str(API_RESULTS_PAGE_SIZE)
+            "page_size": str(API_RESULTS_PAGE_SIZE),
         }
 
         sessions: dict[UUID, WifiSession] = {}

@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from collections.abc import Callable
-    from typing import TypeVar, Any
+    from typing import Any, TypeVar
 
     T = TypeVar("T")
     R = TypeVar("R")
@@ -23,6 +23,7 @@ def get_and_apply[T, R](
         return func(v)
 
     return default
+
 
 def parse_bool(value: Any) -> bool | None:
     """Normalize inconsistent API boolean values."""
