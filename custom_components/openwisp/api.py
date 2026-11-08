@@ -195,41 +195,99 @@ class DeviceWirelessClient:
 
     mac_address: str
     signal: int | None
+    noise: int | None
+    throughput: int | None
+    vendor: str | None
 
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DeviceWirelessClient:
+        if data.get("mac") is None:
+            msg = "Wireless client does not have a MAC-address"
+            raise OpenWispApiError(msg)
+
+        return cls(
+            mac_address=data["mac"].upper(),
+            signal=data.get("signal"),
+            noise=data.get("noise"),
+            throughput=data.get("throughput"),
+            vendor=data.get("vendor"),
+        )
 
 @dataclass
 class DeviceWirelessInterface:
-    """Wireless interface of an OpenWISP device."""
-
-    name: str
-    ssid: str | None
-    mode: str | None
-    channel: int | None
-    frequency: int | None
-    tx_power: int | None
+    ssid: str
     noise: int | None
-    clients: list[DeviceWirelessClient]
+    country: str  | None
+    clients: dict[str, DeviceWirelessClient]
+    signal: int | None
+    bitrate: float| None
+    quality_max: int | None
+    quality: int | None
+    channel: int | None
+    tx_power: int | None
+    mode: str | None
+    htmode: str | None
+    frequency: str | None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceWirelessInterface:
+
+        if data.get("ssid") is None:
+            msg = "Wireless interface does not have a SSID"
+            raise OpenWispApiError(msg)
+
+        clients = {}
+        for client_data in data.get("clients", []):
+            client = DeviceWirelessClient.from_dict(client_data)
+            clients[client.mac_address] = client
+
+        return cls(
+            ssid=data["ssid"],
+            noise=data.get("noise"),
+            country=data.get("country"),
+            clients=clients,
+            signal=data.get("signal"),
+            bitrate=data.get("bitrate"),
+            quality_max=data.get("quality_max"),
+            quality=data.get("quality"),
+            channel=data.get("channel"),
+            tx_power=data.get("tx_power"),
+            mode=data.get("mode"),
+            htmode=data.get("htmode"),
+            frequency=data.get("frequency"),
+        )
+
+@dataclass
+class DeviceInterface:
+    """Wireless interface of an OpenWISP device."""
+
+    name: str
+    mac: str | None
+    type: str
+    mtu: int
+    txqueuelen: int
+    wireless: DeviceWirelessInterface | None
+    multicast: bool
+    up: bool
+
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> DeviceInterface:
         """Create DeviceWirelessInterface from an interface dict."""
-        wireless = data["wireless"]
+
+        if data.get("name") is None:
+            msg = f"Device interface does not have a name."
+            raise OpenWispApiError(msg)
+
         return cls(
             name=data["name"],
-            ssid=wireless.get("ssid"),
-            mode=wireless.get("mode"),
-            channel=wireless.get("channel"),
-            frequency=wireless.get("frequency"),
-            tx_power=wireless.get("tx_power"),
-            noise=wireless.get("noise"),
-            clients=[
-                DeviceWirelessClient(
-                    mac_address=client["mac"].upper(),
-                    signal=client.get("signal"),
-                )
-                for client in wireless.get("clients") or []
-                if client.get("mac")
-            ],
+            mac=get_and_apply(data, "mac", str.upper),
+            type=data.get("type", ""),
+            mtu=data.get("mtu", 0),
+            txqueuelen=data.get("txqueuelen", 0),
+            wireless=get_and_apply(data, "wireless", DeviceWirelessInterface.from_dict),
+            multicast=data.get("multicast", False),
+            up=data.get("up", False),
         )
 
 
@@ -240,7 +298,7 @@ class DeviceStatusInformation:
     type: str
     general: GeneralDeviceStatusInformation | None
     resources: DeviceStatusResources | None
-    wireless: dict[str, DeviceWirelessInterface]
+    interfaces: dict[str, DeviceInterface]
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceStatusInformation:
@@ -250,17 +308,18 @@ class DeviceStatusInformation:
             msg = f"Invalid device status information type: {data['type']}"
             raise OpenWispApiError(msg)
 
+        interfaces = {}
+        for interface_data in data.get("interfaces", []):
+            interface = DeviceInterface.from_dict(interface_data)
+            interfaces[interface.name] = interface
+
         return cls(
             type=information_type,
             general=get_and_apply(
                 data, "general", GeneralDeviceStatusInformation.from_dict
             ),
             resources=get_and_apply(data, "resources", DeviceStatusResources.from_dict),
-            wireless={
-                interface["name"]: DeviceWirelessInterface.from_dict(interface)
-                for interface in data.get("interfaces") or []
-                if interface.get("name") and interface.get("wireless")
-            },
+            interfaces=interfaces,
         )
 
 @dataclass
@@ -511,8 +570,7 @@ class OpenWispApiClient:
 
         return devices
 
-    async def async_get_device_wifi_sessions(
-        self, devices: dict[UUID, OpenWispDevice], organization: UUID | None = None
+    async def async_populate_device_wifi_sessions(
         self, devices: dict[UUID, OpenWispDevice]
     ) -> list[WifiSession]:
         """Get the open Wi-Fi sessions and count them per device."""
