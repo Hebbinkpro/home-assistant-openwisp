@@ -38,11 +38,15 @@ class WifiClient:
 class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
     """Coordinator for OpenWISP."""
 
+    client: OpenWispApiClient
+    organization: UUID | None
+    wifi_clients: dict[str, WifiClient]
+
     def __init__(
         self,
         hass: HomeAssistant,
         client: OpenWispApiClient,
-        organization: UUID,
+        organization: UUID | None,
     ) -> None:
         """Initialize the coordinator."""
         super().__init__(
@@ -56,13 +60,11 @@ class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
         self.organization = organization
         self.wifi_clients: dict[str, WifiClient] = {}
 
-    async def _async_update_data(self) -> dict[UUID, object]:
+    async def _async_update_data(self) -> dict[UUID, OpenWispDevice]:
         """Fetch data from OpenWISP."""
         try:
             devices = await self.client.async_get_devices(self.organization)
-            sessions = await self.client.async_get_device_wifi_sessions(
-                devices, self.organization
-            )
+            sessions = await self.client.async_get_device_wifi_sessions(devices)
         except OpenWispApiClientAuthenticationError as exception:
             raise ConfigEntryAuthFailed from exception
         except OpenWispApiClientCommunicationError as exception:

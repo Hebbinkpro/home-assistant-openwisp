@@ -263,21 +263,6 @@ class DeviceStatusInformation:
             },
         )
 
-
-@dataclass
-class DeviceWifiSessions:
-    """Device Wi-Fi session information of an OpenWISP device."""
-
-    active_sessions: int
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> DeviceWifiSessions:
-        """Create DeviceWifiSessions from a dict."""
-        return cls(
-            active_sessions=data.get("active_sessions", 0),
-        )
-
-
 @dataclass
 class WifiSessionClient:
     """Client associated with a wifi session."""
@@ -327,12 +312,6 @@ class WifiSession:
             raise OpenWispApiError(msg)
 
         return cls(
-            device=data["device"],
-            ssid=data["ssid"],
-            interface_name=data["interface_name"],
-            mac_address=data["client"]["mac_address"].upper(),
-            vendor=data["client"].get("vendor") or None,
-            start_time=datetime.fromisoformat(data["start_time"]),
             id=UUID(data["id"]),
             organization=data.get("organization"),
             device=data.get("device"),
@@ -343,6 +322,12 @@ class WifiSession:
             stop_time=get_and_apply(data, "stop_time", datetime.fromisoformat),
             modified=get_and_apply(data, "modified", datetime.fromisoformat),
         )
+
+@dataclass
+class DeviceWifiSessions:
+    """Device Wi-Fi session information of an OpenWISP device."""
+
+    active_sessions: dict[UUID, WifiSession]
 
 
 @dataclass(slots=True)
@@ -528,14 +513,17 @@ class OpenWispApiClient:
 
     async def async_get_device_wifi_sessions(
         self, devices: dict[UUID, OpenWispDevice], organization: UUID | None = None
+        self, devices: dict[UUID, OpenWispDevice]
     ) -> list[WifiSession]:
         """Get the open Wi-Fi sessions and count them per device."""
-        sessions = await self.async_get_open_wifi_sessions(organization)
+        sessions = []
         for device in devices.values():
-            device.wifi_sessions = DeviceWifiSessions(
-                sum(1 for session in sessions if session.device == device.name)
-            )
+            device_sessions = await self._async_get_device_wifi_sessions(device)
+            device.wifi_sessions = DeviceWifiSessions(device_sessions)
+            sessions.extend(device_sessions.values())
+
         return sessions
+
 
     async def _populate_device_data(self, device: OpenWispDevice) -> OpenWispDevice:
         """Populate the device data with status data."""
@@ -593,15 +581,17 @@ class OpenWispApiClient:
 
         self._token = res["token"]
 
-    async def async_get_open_wifi_sessions(
-        self, organization: UUID | None = None
-    ) -> list[WifiSession]:
-        """Get all open Wi-Fi sessions, following the pagination."""
-        query = {"stop_time__isnull": "true", "page_size": str(API_RESULTS_PAGE_SIZE)}
-        if organization is not None:
-            query["device__organization"] = str(organization)
+    async def _async_get_device_wifi_sessions(
+        self, device: OpenWispDevice
+    ) -> dict[UUID, WifiSession]:
+        """Get all open Wi-Fi sessions from a given device, following the pagination."""
+        query = {
+            "device": str(device.id),
+            "stop_time__isnull": "true",
+            "page_size": str(API_RESULTS_PAGE_SIZE)
+        }
 
-        sessions: list[WifiSession] = []
+        sessions: dict[UUID, WifiSession] = {}
         page = 1
         next_page = True
         while next_page:
@@ -613,13 +603,14 @@ class OpenWispApiClient:
                 )
             )
 
-            next_page = res.get("next") is not None
-
             for item in res.get("results", []):
                 try:
-                    sessions.append(WifiSession.from_dict(item))
+                    session = WifiSession.from_dict(item)
+                    sessions[session.id] = session
                 except OpenWispApiError as e:
                     LOGGER.warning("Ignoring malformed Wi-Fi session %s: %s", item, e)
+
+            next_page = res.get("next") is not None
             page += 1
 
         return sessions

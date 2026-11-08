@@ -213,7 +213,7 @@ class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity)
         if self.device.wifi_sessions is None:
             return None
 
-        return self.device.wifi_sessions.active_sessions
+        return len(self.device.wifi_sessions.active_sessions)
 
 
 MESH_MODE = "802.11s"
