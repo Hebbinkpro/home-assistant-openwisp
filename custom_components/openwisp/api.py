@@ -198,6 +198,7 @@ class DeviceWirelessClient:
     noise: int | None
     throughput: int | None
     vendor: str | None
+    session: WifiSession | None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceWirelessClient:
@@ -211,6 +212,7 @@ class DeviceWirelessClient:
             noise=data.get("noise"),
             throughput=data.get("throughput"),
             vendor=data.get("vendor"),
+            session=None
         )
 
 @dataclass
@@ -227,7 +229,7 @@ class DeviceWirelessInterface:
     tx_power: int | None
     mode: str | None
     htmode: str | None
-    frequency: str | None
+    frequency: int | None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> DeviceWirelessInterface:
@@ -325,7 +327,7 @@ class DeviceStatusInformation:
 @dataclass
 class WifiSessionClient:
     """Client associated with a wifi session."""
-    mac_address: str | None
+    mac_address: str
     vendor: str
     wifi6: bool | None
     wifi5: bool | None
@@ -336,8 +338,12 @@ class WifiSessionClient:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WifiSessionClient:
+        if data.get("mac") is None:
+            msg = "Wi-Fi session client does not have a mac."
+            raise OpenWispApiError(msg)
+
         return cls(
-            mac_address=get_and_apply(data, "mac_address", str.upper),
+            mac_address=data["mac_address"].upper(),
             vendor=data.get("vendor", ""),
             # Note: The API is capable of returning null, "True", "False", true, and false...
             wifi6=parse_bool(data.get("wifi6")),
@@ -650,6 +656,7 @@ class OpenWispApiClient:
         }
 
         sessions: dict[UUID, WifiSession] = {}
+        client_sessions: dict[str, WifiSession] = {}
         page = 1
         next_page = True
         while next_page:
@@ -665,11 +672,26 @@ class OpenWispApiClient:
                 try:
                     session = WifiSession.from_dict(item)
                     sessions[session.id] = session
+
+                    if session.client is not None:
+                        client_sessions[session.client.mac_address] = session
+
                 except OpenWispApiError as e:
                     LOGGER.warning("Ignoring malformed Wi-Fi session %s: %s", item, e)
 
             next_page = res.get("next") is not None
             page += 1
+
+        # map wireless device interface clients to wifi sessions
+        if device.data is not None:
+            for interface in device.data.interfaces.values():
+                if interface.wireless is None:
+                    continue
+
+                for client_mac, wireless_client in interface.wireless.clients.items():
+                    client_session = client_sessions.get(client_mac)
+                    if client_session is not None:
+                        wireless_client.session = client_session
 
         return sessions
 
