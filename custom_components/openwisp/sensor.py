@@ -26,6 +26,7 @@ if TYPE_CHECKING:
 
     from .api import (
         DeviceStatusDiskResources,
+        DeviceInterface,
         DeviceWirelessInterface,
         OpenWispDevice,
     )
@@ -101,10 +102,10 @@ async def async_setup_entry(
                     ]
                 )
 
-            entities.extend(
-                OpenWispDeviceWirelessClientsSensor(coordinator, device, interface)
-                for interface in device.data.wireless.values()
-            )
+            for interface in device.data.interfaces.values():
+                if interface.wireless is not None:
+                    entities.append(OpenWispDeviceWirelessClientsSensor(coordinator, device, interface, interface.wirless))
+
         if device.wifi_sessions is not None:
             entities.extend(
                 [
@@ -242,18 +243,19 @@ class OpenWispDeviceWirelessClientsSensor(OpenWispDeviceEntity, SensorEntity):
         self,
         coordinator: OpenWispDataUpdateCoordinator,
         device: OpenWispDevice,
-        interface: DeviceWirelessInterface,
+        interface: DeviceInterface,
+        wireless: DeviceWirelessInterface
     ) -> None:
         """Initialize the sensor."""
         super().__init__(coordinator, device)
-        self._interface = interface.name
+        self._interface_name = interface.name
         self._attr_unique_id = f"{self._base_unique_id}_wireless_{interface.name}"
-        mesh = interface.mode == MESH_MODE
-        band = _band(interface.frequency)
+        mesh = wireless.mode == MESH_MODE
+        band = _band(wireless.frequency)
         self._attr_name = " ".join(
             part
             for part in (
-                interface.ssid or interface.name,
+                wireless.ssid or interface.name,
                 band,
                 "peers" if mesh else "clients",
             )
@@ -262,10 +264,16 @@ class OpenWispDeviceWirelessClientsSensor(OpenWispDeviceEntity, SensorEntity):
         self._attr_icon = "mdi:access-point-network" if mesh else "mdi:wifi"
 
     @property
+    def _interface(self) -> DeviceInterface | None:
+        if self.device.data is None:
+            return None
+        return self.device.data.interfaces.get(self._interface_name)
+
+    @property
     def _wireless(self) -> DeviceWirelessInterface | None:
         if self.device.data is None:
             return None
-        return self.device.data.wireless.get(self._interface)
+        return self._interface.wireless
 
     @property
     def available(self) -> bool:
@@ -280,11 +288,15 @@ class OpenWispDeviceWirelessClientsSensor(OpenWispDeviceEntity, SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the radio settings of the interface."""
+        interface = self._interface
+        if interface is None:
+            return {}
+
         wireless = self._wireless
         if wireless is None:
             return {}
         return {
-            "interface": wireless.name,
+            "interface": interface.name,
             "ssid": wireless.ssid,
             "mode": wireless.mode,
             "channel": wireless.channel,

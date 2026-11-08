@@ -85,7 +85,11 @@ class OpenWispWifiClientTracker(OpenWispEntity, ScannerEntity):
         """Return where the client was last seen."""
         if self._client is None:
             return {}
+
         session = self._client.session
+        if session is None:
+            return {}
+
         return {
             "device": session.device,
             "ssid": session.ssid,

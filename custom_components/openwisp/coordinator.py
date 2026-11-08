@@ -30,7 +30,7 @@ class WifiClient:
 
     mac_address: str
     last_seen: datetime
-    session: WifiSession
+    session: WifiSession | None
     signal: int | None = None
     connected: bool = field(default=True)
 
@@ -64,17 +64,17 @@ class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
         """Fetch data from OpenWISP."""
         try:
             devices = await self.client.async_get_devices(self.organization)
-            sessions = await self.client.async_get_device_wifi_sessions(devices)
+            await self.client.async_populate_device_wifi_sessions(devices)
         except OpenWispApiClientAuthenticationError as exception:
             raise ConfigEntryAuthFailed from exception
         except OpenWispApiClientCommunicationError as exception:
             raise UpdateFailed(str(exception)) from exception
         else:
-            self._update_wifi_clients(devices, sessions)
+            self._update_wifi_clients(devices)
             return devices
 
     def _update_wifi_clients(
-        self, devices: dict[UUID, OpenWispDevice], sessions: list[WifiSession]
+        self, devices: dict[UUID, OpenWispDevice]
     ) -> None:
         """
         Track the Wi-Fi clients of the open sessions.
@@ -84,20 +84,27 @@ class OpenWispDataUpdateCoordinator(DataUpdateCoordinator):
         once it has been missing for CONSIDER_HOME.
         """
         now = datetime.now(UTC)
-        signals = {
-            client.mac_address: client.signal
-            for device in devices.values()
-            if device.data is not None
-            for interface in device.data.wireless.values()
-            for client in interface.clients
-        }
-        # the latest session wins when a roam left two open
-        for session in sorted(sessions, key=lambda s: s.start_time):
-            self.wifi_clients[session.mac_address] = WifiClient(
-                mac_address=session.mac_address,
-                last_seen=now,
-                session=session,
-                signal=signals.get(session.mac_address),
-            )
-        for client in self.wifi_clients.values():
+
+        currently_connected = set()
+        for device in devices.values():
+            if device.data is None:
+                continue
+
+            for interface in device.data.interfaces.values():
+                if interface.wireless is None:
+                    continue
+
+                for mac,client in interface.wireless.clients.items():
+                    self.wifi_clients[mac] = WifiClient(
+                        mac_address=mac,
+                        last_seen=now,
+                        session=client.session,
+                        signal=client.signal
+                    )
+                    currently_connected.add(mac)
+
+        not_connected = set(self.wifi_clients.keys()) - currently_connected
+        for mac in not_connected:
+            client = self.wifi_clients[mac]
             client.connected = now - client.last_seen < CONSIDER_HOME
+
