@@ -14,3 +14,6 @@ UPDATE_INTERVAL = timedelta(minutes=1)
 # how long a Wi-Fi client may be missing from the open sessions before it is
 # reported away, so that roaming between devices does not flap
 CONSIDER_HOME = timedelta(minutes=3)
+
+# Number of result items to request with a single API query
+API_RESULTS_PAGE_SIZE = 100

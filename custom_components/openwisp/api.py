@@ -15,7 +15,7 @@ import aiohttp
 import async_timeout
 from slugify import slugify
 
-from .const import LOGGER
+from .const import LOGGER, API_RESULTS_PAGE_SIZE
 from .utils import get_and_apply
 
 if TYPE_CHECKING:
@@ -554,13 +554,14 @@ class OpenWispApiClient:
         self, organization: UUID | None = None
     ) -> list[WifiSession]:
         """Get all open Wi-Fi sessions, following the pagination."""
-        query = {"stop_time__isnull": "true", "page_size": "100"}
+        query = {"stop_time__isnull": "true", "page_size": str(API_RESULTS_PAGE_SIZE)}
         if organization is not None:
             query["device__organization"] = str(organization)
 
         sessions: list[WifiSession] = []
         page = 1
-        while True:
+        next_page = True
+        while next_page:
             res = await self._api_wrapper(
                 ApiRequest(
                     method="get",
@@ -568,14 +569,17 @@ class OpenWispApiClient:
                     query={**query, "page": str(page)},
                 )
             )
-            for item in res.get("results") or []:
+
+            next_page = res.get("next") is not None
+
+            for item in res.get("results", []):
                 try:
                     sessions.append(WifiSession.from_dict(item))
-                except (KeyError, TypeError, ValueError) as e:
+                except OpenWispApiError as e:
                     LOGGER.warning("Ignoring malformed Wi-Fi session %s: %s", item, e)
-            if not res.get("next"):
-                return sessions
             page += 1
+
+        return sessions
 
     async def ensure_authenticated(self) -> None:
         """Ensure a valid token exists."""
