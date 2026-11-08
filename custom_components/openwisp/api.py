@@ -16,7 +16,7 @@ import async_timeout
 from slugify import slugify
 
 from .const import LOGGER, API_RESULTS_PAGE_SIZE
-from .utils import get_and_apply
+from .utils import get_and_apply, parse_bool
 
 if TYPE_CHECKING:
     from ipaddress import IPv4Address, IPv6Address
@@ -279,19 +279,53 @@ class DeviceWifiSessions:
 
 
 @dataclass
+class WifiSessionClient:
+    """Client associated with a wifi session."""
+    mac_address: str | None
+    vendor: str
+    wifi6: bool | None
+    wifi5: bool | None
+    wifi4: bool | None
+    wmm: bool | None
+    wds: bool | None
+    wps: bool | None
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WifiSessionClient:
+        return cls(
+            mac_address=get_and_apply(data, "mac_address", str.upper),
+            vendor=data.get("vendor", ""),
+            # Note: The API is capable of returning null, "True", "False", true, and false...
+            wifi6=parse_bool(data.get("wifi6")),
+            wifi5=parse_bool(data.get("wifi5")),
+            wifi4=parse_bool(data.get("wifi4")),
+            wmm=parse_bool(data.get("wmm")),
+            wds=parse_bool(data.get("wds")),
+            wps=parse_bool(data.get("wps")),
+        )
+
+
+@dataclass
 class WifiSession:
     """Open Wi-Fi session of a client on an OpenWISP device."""
 
-    device: str
+    id: UUID
+    organization: str | None
+    device: str | None
     ssid: str
     interface_name: str
-    mac_address: str
-    vendor: str | None
-    start_time: datetime
+    client: WifiSessionClient | None
+    start_time: datetime | None
+    stop_time: datetime | None
+    modified: datetime | None
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WifiSession:
         """Create a WifiSession from a dict."""
+        if data.get("id") is None:
+            msg = "Missing device ID while parsing OpenWispDevice"
+            raise OpenWispApiError(msg)
+
         return cls(
             device=data["device"],
             ssid=data["ssid"],
@@ -299,6 +333,15 @@ class WifiSession:
             mac_address=data["client"]["mac_address"].upper(),
             vendor=data["client"].get("vendor") or None,
             start_time=datetime.fromisoformat(data["start_time"]),
+            id=UUID(data["id"]),
+            organization=data.get("organization"),
+            device=data.get("device"),
+            ssid=data.get("ssid", ""),
+            interface_name=data.get("interface_name", ""),
+            client=get_and_apply(data, "client", WifiSessionClient.from_dict),
+            start_time=get_and_apply(data, "start_time", datetime.fromisoformat),
+            stop_time=get_and_apply(data, "stop_time", datetime.fromisoformat),
+            modified=get_and_apply(data, "modified", datetime.fromisoformat),
         )
 
 
