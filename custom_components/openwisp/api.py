@@ -529,20 +529,29 @@ class OpenWispApiClient:
 
     async def async_get_organizations(self) -> list[OpenWispOrganization]:
         """Get all organizations from the API."""
-        res = await self._api_wrapper(
-            ApiRequest(
-                method="get",
-                path="/api/v1/users/organization/",
-            )
-        )
+
 
         organizations: list[OpenWispOrganization] = []
+        page = 1
+        next_page = True
+        while next_page:
 
-        for org in res.get("results", []):
-            try:
-                organizations.append(OpenWispOrganization.from_dict(org))
-            except OpenWispApiError as e:
-                LOGGER.error(f"Error creating OpenWisp organization: {e}")
+            res = await self._api_wrapper(
+                ApiRequest(
+                    method="get",
+                    path="/api/v1/users/organization/",
+                    query={"page_size": str(API_RESULTS_PAGE_SIZE), "page": str(page)},
+                )
+            )
+
+            for org in res.get("results", []):
+                try:
+                    organizations.append(OpenWispOrganization.from_dict(org))
+                except OpenWispApiError as e:
+                    LOGGER.error(f"Error creating OpenWisp organization: {e}")
+
+            next_page = res.get("next") is not None
+            page += 1
 
         return organizations
 
