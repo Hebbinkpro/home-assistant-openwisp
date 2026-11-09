@@ -550,32 +550,35 @@ class OpenWispApiClient:
         self, organization: UUID | None = None
     ) -> dict[UUID, OpenWispDevice]:
         """Get all device information from the API."""
-        if organization is None:
-            res = await self._api_wrapper(
-                ApiRequest(
-                    method="get",
-                    path="/api/v1/monitoring/device/",
-                )
-            )
-        else:
-            res = await self._api_wrapper(
-                ApiRequest(
-                    method="get",
-                    path="/api/v1/monitoring/device/",
-                    query={"organization": str(organization)},
-                )
-            )
+
+        query = {"page_size": str(API_RESULTS_PAGE_SIZE)}
+        if organization is not None:
+            query["organization"] = str(organization)
 
         devices: dict[UUID, OpenWispDevice] = {}
 
-        for device_data in res.get("results", []):
-            # attempt to create OpenWispDevice from device data, but log any errors
-            try:
-                device = OpenWispDevice.from_dict(device_data)
-                devices[device.id] = device
-            except OpenWispApiError as e:
-                LOGGER.error("Error creating OpenWispDevice from data: %s", e)
-                continue
+        page = 1
+        next_page = True
+        while next_page:
+            res = await self._api_wrapper(
+                ApiRequest(
+                    method="get",
+                    path="/api/v1/monitoring/device/",
+                    query={**query, "page": str(page)},
+                )
+            )
+
+            for device_data in res.get("results", []):
+                # attempt to create OpenWispDevice from device data, but log any errors
+                try:
+                    device = OpenWispDevice.from_dict(device_data)
+                    devices[device.id] = device
+                except OpenWispApiError as e:
+                    LOGGER.error("Error creating OpenWispDevice from data: %s", e)
+                    continue
+
+            next_page = res.get("next") is not None
+            page += 1
 
         await asyncio.gather(
             *(self._populate_device_data(device) for device in devices.values())
