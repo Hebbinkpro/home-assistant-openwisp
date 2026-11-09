@@ -105,7 +105,7 @@ async def async_setup_entry(
             entities.extend(
                 [
                     OpenWispDeviceWirelessClientsSensor(
-                        coordinator, device, interface, interface.wirless
+                        coordinator, device, interface, interface.wireless
                     )
                     for interface in device.data.interfaces.values()
                     if interface.wireless is not None

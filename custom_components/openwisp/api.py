@@ -344,7 +344,7 @@ class WifiSessionClient:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WifiSessionClient:
         """Create a WifiSessionClient from a dict."""
-        if data.get("mac") is None:
+        if data.get("mac_address") is None:
             msg = "Wi-Fi session client does not have a mac."
             raise OpenWispApiError(msg)
 
