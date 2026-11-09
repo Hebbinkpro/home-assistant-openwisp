@@ -529,13 +529,10 @@ class OpenWispApiClient:
 
     async def async_get_organizations(self) -> list[OpenWispOrganization]:
         """Get all organizations from the API."""
-
-
         organizations: list[OpenWispOrganization] = []
         page = 1
         next_page = True
         while next_page:
-
             res = await self._api_wrapper(
                 ApiRequest(
                     method="get",
@@ -559,7 +556,6 @@ class OpenWispApiClient:
         self, organization: UUID | None = None
     ) -> dict[UUID, OpenWispDevice]:
         """Get all device information from the API."""
-
         query = {"page_size": str(API_RESULTS_PAGE_SIZE)}
         if organization is not None:
             query["organization"] = str(organization)
