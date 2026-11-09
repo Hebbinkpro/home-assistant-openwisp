@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from zoneinfo import ZoneInfo
 
 from homeassistant.components.sensor import (
@@ -24,7 +24,12 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-    from .api import DeviceStatusDiskResources, OpenWispDevice
+    from .api import (
+        DeviceInterface,
+        DeviceStatusDiskResources,
+        DeviceWirelessInterface,
+        OpenWispDevice,
+    )
     from .data import OpenWispConfigEntry, OpenWispDataUpdateCoordinator
 
 
@@ -96,6 +101,16 @@ async def async_setup_entry(
                         ),
                     ]
                 )
+
+            entities.extend(
+                [
+                    OpenWispDeviceWirelessClientsSensor(
+                        coordinator, device, interface, interface.wireless
+                    )
+                    for interface in device.data.interfaces.values()
+                    if interface.wireless is not None
+                ]
+            )
 
         if device.wifi_sessions is not None:
             entities.extend(
@@ -205,7 +220,96 @@ class OpenWispDeviceActiveWifiSessionsSensor(OpenWispDeviceEntity, SensorEntity)
         if self.device.wifi_sessions is None:
             return None
 
-        return self.device.wifi_sessions.active_sessions
+        return len(self.device.wifi_sessions.active_sessions)
+
+
+MESH_MODE = "802.11s"
+BAND_5GHZ_START = 5000
+BAND_6GHZ_START = 5925
+
+
+def _band(frequency: int | None) -> str | None:
+    """Return the Wi-Fi band of a frequency in MHz."""
+    if frequency is None:
+        return None
+    if frequency < BAND_5GHZ_START:
+        return "2.4 GHz"
+    if frequency < BAND_6GHZ_START:
+        return "5 GHz"
+    return "6 GHz"
+
+
+class OpenWispDeviceWirelessClientsSensor(OpenWispDeviceEntity, SensorEntity):
+    """Clients of an access point interface, or peers of a mesh interface."""
+
+    _attr_has_entity_name = True
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: OpenWispDataUpdateCoordinator,
+        device: OpenWispDevice,
+        interface: DeviceInterface,
+        wireless: DeviceWirelessInterface,
+    ) -> None:
+        """Initialize the sensor."""
+        super().__init__(coordinator, device)
+        self._interface_name = interface.name
+        self._attr_unique_id = f"{self._base_unique_id}_wireless_{interface.name}"
+        mesh = wireless.mode == MESH_MODE
+        band = _band(wireless.frequency)
+        self._attr_name = " ".join(
+            part
+            for part in (
+                wireless.ssid or interface.name,
+                band,
+                "peers" if mesh else "clients",
+            )
+            if part
+        )
+        self._attr_icon = "mdi:access-point-network" if mesh else "mdi:wifi"
+
+    @property
+    def _interface(self) -> DeviceInterface | None:
+        if self.device.data is None:
+            return None
+        return self.device.data.interfaces.get(self._interface_name)
+
+    @property
+    def _wireless(self) -> DeviceWirelessInterface | None:
+        if self.device.data is None:
+            return None
+        return self._interface.wireless
+
+    @property
+    def available(self) -> bool:
+        """Only available while the device reports the interface."""
+        return super().available and self._wireless is not None
+
+    @property
+    def native_value(self) -> int:
+        """Return the number of associated stations."""
+        return len(self._wireless.clients)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the radio settings of the interface."""
+        interface = self._interface
+        if interface is None:
+            return {}
+
+        wireless = self._wireless
+        if wireless is None:
+            return {}
+        return {
+            "interface": interface.name,
+            "ssid": wireless.ssid,
+            "mode": wireless.mode,
+            "channel": wireless.channel,
+            "frequency": wireless.frequency,
+            "tx_power": wireless.tx_power,
+            "noise": wireless.noise,
+        }
 
 
 class OpenWispDeviceStatusInformationSensor(OpenWispDeviceEntity, SensorEntity):
